@@ -9,8 +9,8 @@ typedef enum {EULER_PAR_GAMMA,EULER_PAR_RHOR,EULER_PAR_AMACH,EULER_PAR_ITANA,EUL
 
 typedef struct {
     PetscReal rho;
-    PetscReal u[DIM];
-    PetscReal E;
+    PetscReal rhoU[DIM];
+    PetscReal rhoE;
 } EulerNode;
 typedef union {
     EulerNode eulernode;
@@ -165,7 +165,7 @@ static PetscErrorCode SetExactSolution(PetscInt dim, PetscReal time, const Petsc
     PetscReal aR = PetscSqrtReal(prob->setup.gamma*prob->setup.pR/prob->setup.rhoR);
 
     for(PetscInt i =0; i < dim; i++){
-        uu->u[i] = 0.0;
+        uu->rhoU[i] = 0.0;
     }
 
     if (xDt <= prob->starState.ustar) {  //# left of contact surface
@@ -173,26 +173,26 @@ static PetscErrorCode SetExactSolution(PetscInt dim, PetscReal time, const Petsc
             if (xDt <= prob->starState.SHL) {
                 uu->rho = prob->setup.rhoL;
                 p = prob->setup.pL;
-                uu->u[0] = prob->setup.uL;
+                uu->rhoU[0] = prob->setup.uL*uu->rho;
             }else if (xDt <=prob->starState.STL) {  //#SHL < x / t < STL
                 PetscReal tmp = 2. / prob->starState.gamp1 + (prob->starState.gamm1 / prob->starState.gamp1 / aL) * (prob->setup.uL - xDt);
                 uu->rho = prob->setup.rhoL * pow(tmp, 2. / prob->starState.gamm1);
-                uu->u[0] = (2. / prob->starState.gamp1) * (aL + 0.5 * prob->starState.gamm1 * prob->setup.uL + xDt);
+                uu->rhoU[0] = uu->rho * (2. / prob->starState.gamp1) * (aL + 0.5 * prob->starState.gamm1 * prob->setup.uL + xDt);
                 p = prob->setup.pL * pow(tmp, 2. * prob->setup.gamma / prob->starState.gamm1);
             }else {  //# STL < x/t < u*
                 uu->rho = prob->starState.rhostarL;
                 p = prob->starState.pstar;
-                uu->u[0] = prob->starState.ustar;
+                uu->rhoU[0] = uu->rho * prob->starState.ustar;
             }
         }else{  //# shock
             if (xDt<= prob->starState.SL) {  // # xDt < SL
                 uu->rho = prob->setup.rhoL;
                 p = prob->setup.pL;
-                uu->u[0] = prob->setup.uL;
+                uu->rhoU[0] = uu->rho * prob->setup.uL;
             }else {  //# SL < xDt < ustar
                 uu->rho = prob->starState.rhostarL;
                 p = prob->starState.pstar;
-                uu->u[0] = prob->starState.ustar;
+                uu->rhoU[0] = uu->rho * prob->starState.ustar;
             }
         }
     }else{//# right of contact surface
@@ -200,30 +200,32 @@ static PetscErrorCode SetExactSolution(PetscInt dim, PetscReal time, const Petsc
             if (xDt>= prob->starState.SHR) {
                 uu->rho = prob->setup.rhoR;
                 p = prob->setup.pR;
-                uu->u[0] = prob->setup.uR;
+                uu->rhoU[0] = uu->rho * prob->setup.uR;
             }else if (xDt >= prob->starState.STR) {  // # SHR < x/t < SHR
                 PetscReal tmp = 2./prob->starState.gamp1 - (prob->starState.gamm1/prob->starState.gamp1/aR)*(prob->setup.uR-xDt);
                 uu->rho = prob->setup.rhoR*PetscPowReal(tmp,2./prob->starState.gamm1);
-                uu->u[0] = (2./prob->starState.gamp1)*(-aR + 0.5*prob->starState.gamm1*prob->setup.uR+xDt);
+                uu->rhoU[0] = uu->rho * (2./prob->starState.gamp1)*(-aR + 0.5*prob->starState.gamm1*prob->setup.uR+xDt);
                 p = prob->setup.pR*PetscPowReal(tmp,2.*prob->setup.gamma/prob->starState.gamm1);
             }else{ //# u* < x/t < STR
                 uu->rho = prob->starState.rhostarR;
                 p = prob->starState.pstar;
-                uu->u[0] = prob->starState.ustar;
+                uu->rhoU[0] = uu->rho * prob->starState.ustar;
             }
         }else {//# shock
             if (xDt>= prob->starState.SR) {  // # xDt > SR
                 uu->rho = prob->setup.rhoR;
                 p = prob->setup.pR;
-                uu->u[0] = prob->setup.uR;
+                uu->rhoU[0] = uu->rho * prob->setup.uR;
             }else {//#ustar < xDt < SR
                    uu->rho = prob->starState.rhostarR;
                    p = prob->starState.pstar;
-                   uu->u[0] = prob->starState.ustar;
+                   uu->rhoU[0] = uu->rho * prob->starState.ustar;
             }
         }
     }
-    uu->E = p/prob->starState.gamm1/uu->rho;
+    PetscReal e =  p/prob->starState.gamm1/uu->rho;
+    PetscReal E = e + 0.5*(uu->rhoU[0]/uu->rho)*(uu->rhoU[0]/uu->rho);
+    uu->rhoE = uu->rho*E;
     return 0;
 }
 
@@ -236,8 +238,8 @@ static PetscErrorCode PrintVector(DM dm, Vec v, PetscInt step, const char * file
     ierr = VecGetDM(cellgeom, &dmCell);CHKERRQ(ierr);
     const PetscScalar *cgeom;
     ierr = VecGetArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
-    PetscScalar      *x;
-    ierr = VecGetArray(v, &x);CHKERRQ(ierr);
+    const PetscScalar      *x;
+    ierr = VecGetArrayRead(v, &x);CHKERRQ(ierr);
     // print the header for each file
     char filename[100];
     ierr = PetscSNPrintf(filename,sizeof(filename),"%s.%d.txt",fileName, step);CHKERRQ(ierr);
@@ -246,17 +248,17 @@ static PetscErrorCode PrintVector(DM dm, Vec v, PetscInt step, const char * file
     fprintf(fptr, "x rho u e\n");
     for (PetscInt c = cStart; c < cEnd; ++c) {
         PetscFVCellGeom       *cg;
-        EulerNode           *xc;
+        const EulerNode           *xc;
 
         ierr = DMPlexPointLocalRead(dmCell, c, cgeom, &cg);CHKERRQ(ierr);
-        ierr = DMPlexPointGlobalFieldRef(dm, c, 0, x, &xc);CHKERRQ(ierr);
-
-        fprintf(fptr, "%f %f %f %f\n", cg->centroid[0], xc->rho, xc->u[0], xc->E);
+        ierr = DMPlexPointGlobalFieldRead(dm, c, 0, x, &xc);CHKERRQ(ierr);
+        PetscReal u0 = xc->rhoU[0]/xc->rho;
+        fprintf(fptr, "%f %f %f %f\n", cg->centroid[0], xc->rho, u0, (xc->rhoE/xc->rho)-0.5*u0*u0);
     }
 
     fclose(fptr);
     ierr = VecRestoreArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
-    ierr = VecRestoreArray(v, &x);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(v, &x);CHKERRQ(ierr);
     return 0;
 }
 
@@ -280,12 +282,31 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
 
     // just print to a file for now
     ierr = PrintVector(dm, e, step, "exact");CHKERRQ(ierr);
+    ierr = PrintVector(dm, u, step, "solution");CHKERRQ(ierr);
+
+    PetscPrintf(PETSC_COMM_WORLD, "TS %d: %f\n", step, time);
 
     DMRestoreGlobalVector(dm, &e);
     PetscFunctionReturn(0);
 }
 
-static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const PetscScalar *xL, const PetscScalar *xR, PetscInt numConstants, const PetscScalar constants[], PetscScalar *flux, void* phys) {
+static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const EulerNode *xL, const EulerNode *xR, PetscInt numConstants, const PetscScalar constants[], PetscScalar *flux, void* phys) {
+//    dim	- The spatial dimension
+//    Nf	- The number of fields
+//    x	- The coordinates at a point on the interface
+//    n	- The normal vector to the interface
+//    uL	- The state vector to the left of the interface
+//    uR	- The state vector to the right of the interface
+//    flux	- output array of flux through the interface
+//    numConstants	- number of constant parameters
+//    constants	- constant parameters
+//    ctx	- optional user context
+
+
+//    F[0][i]=rho[i]*u[i]
+//    F[1][i]=rho[i]*u[i]*u[i]+p[i]
+//    et = e[i]+0.5*u[i]*u[i]
+//    F[2][i]=rho[i]*u[i]*(et+p[i]/rho[i])
 
 }
 
@@ -392,6 +413,13 @@ int main(int argc, char **argv)
     ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, NULL);CHKERRQ(ierr);//TODO: This is were we set the RHS function
     ierr = TSSetMaxTime(ts,problem.setup.maxTime);CHKERRQ(ierr);
     ierr = TSMonitorSet(ts, MonitorError, &problem, NULL);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts, 0.008);CHKERRQ(ierr);
+    // set the initial conditions
+    PetscErrorCode     (*func[1]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {SetExactSolution};
+    void* ctxs[1] ={&problem};
+    ierr    = DMProjectFunction(dm,0.0,func,ctxs,INSERT_ALL_VALUES,X);CHKERRQ(ierr);
+
+
 
     ierr = TSSolve(ts,X);CHKERRQ(ierr);
 //    ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
