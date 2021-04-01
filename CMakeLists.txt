@@ -39,3 +39,9 @@ target_link_libraries(ablateLibraryClient PUBLIC ablateLibrary)
 # define the two sample programs
 add_executable(ablateCoreClient ablateCoreClient.c)
 target_link_libraries(ablateCoreClient PUBLIC ablateCore)
+
+add_executable(ex11 ex11.c)
+target_link_libraries(ex11 PUBLIC ablateCore)
+
+add_executable(euler euler.c)
+target_link_libraries(euler PUBLIC ablateCore)
