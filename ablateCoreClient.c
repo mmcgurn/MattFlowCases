@@ -212,6 +212,7 @@ int main(int argc, char *argv[]) {
     // setup the ts
     ierr = TSCreate(PETSC_COMM_WORLD, &ts);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
+    ierr = TSSetProblemType(ts, TS_NONLINEAR);CHKERRQ(ierr);
     ierr = CreateMesh(PETSC_COMM_WORLD, &dm, PETSC_TRUE, 2);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
     ierr = TSSetDM(ts, dm);

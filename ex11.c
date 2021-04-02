@@ -1773,6 +1773,9 @@ int main(int argc, char **argv)
         if (dim != DIM) SETERRQ1(comm,PETSC_ERR_ARG_SIZ,"Dim wrong size %D in -grid_size",dim);
       }
       ierr = DMPlexCreateBoxMesh(comm, dim, simplex, cells, NULL, NULL, mod->bcs, PETSC_TRUE, &dm);CHKERRQ(ierr);
+        puts("after DMPlexCreateBoxMesh Call");
+        DMView(dm, PETSC_VIEWER_STDOUT_WORLD);
+
       if (flg2) {
         PetscInt dimEmbed, i;
         PetscInt nCoords;
@@ -1809,7 +1812,11 @@ int main(int argc, char **argv)
       ierr = DMPlexCreateFromFile(comm, filename, PETSC_TRUE, &dm);CHKERRQ(ierr);
     }
   }
-  ierr = DMViewFromOptions(dm, NULL, "-orig_dm_view");CHKERRQ(ierr);
+    puts("after DMPlexCreateBoxMesh Bracket");
+    DMView(dm, PETSC_VIEWER_STDOUT_WORLD);
+
+
+    ierr = DMViewFromOptions(dm, NULL, "-orig_dm_view");CHKERRQ(ierr);
   ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
 
   /* set up BCs, functions, tags */
@@ -1966,6 +1973,9 @@ int main(int argc, char **argv)
     ierr = PetscFVSetLimiter(fvm, limiter);CHKERRQ(ierr);
   }
 
+    puts("before DMConvert");
+    DMView(dm, PETSC_VIEWER_STDOUT_WORLD);
+
   ierr = DMConvert(dm, DMPLEX, &plex);CHKERRQ(ierr);
   if (vtkCellGeom) {
     DM  dmCell;
@@ -1982,6 +1992,8 @@ int main(int argc, char **argv)
     ierr = VecDestroy(&partition);CHKERRQ(ierr);
     ierr = DMDestroy(&dmCell);CHKERRQ(ierr);
   }
+
+
   /* collect max maxspeed from all processes -- todo */
   ierr = DMPlexGetGeometryFVM(plex, NULL, NULL, &minRadius);CHKERRQ(ierr);
   ierr = DMDestroy(&plex);CHKERRQ(ierr);
@@ -1990,6 +2002,10 @@ int main(int argc, char **argv)
   dt   = cfl * minRadius / mod->maxspeed;
   ierr = TSSetTimeStep(ts,dt);CHKERRQ(ierr);
   ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+
+  puts("final");
+  DMView(dm, PETSC_VIEWER_STDOUT_WORLD);
+
   if (!useAMR) {
     ierr = TSSolve(ts,X);CHKERRQ(ierr);
     ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);

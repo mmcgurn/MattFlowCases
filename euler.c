@@ -153,79 +153,83 @@ static PetscErrorCode DetermineStarState(const Setup* setup, StarState* starStat
     return 0;
 }
 
-static PetscErrorCode SetExactSolution(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx){
-    EulerNode       *uu  = (EulerNode*)u;
-    ProblemSetup* prob = (ProblemSetup*)ctx;
-
-    PetscReal xDt = (x[0]-prob->setup.length/2)/time;
-
+static void SetExactSolutionAtPoint(PetscInt dim, PetscReal xDt, const Setup* setup, const StarState* starState, EulerNode* uu){
     PetscReal p;
     // compute the speed of sound
-    PetscReal aL = PetscSqrtReal(prob->setup.gamma*prob->setup.pL/prob->setup.rhoL);
-    PetscReal aR = PetscSqrtReal(prob->setup.gamma*prob->setup.pR/prob->setup.rhoR);
+    PetscReal aL = PetscSqrtReal(setup->gamma*setup->pL/setup->rhoL);
+    PetscReal aR = PetscSqrtReal(setup->gamma*setup->pR/setup->rhoR);
 
     for(PetscInt i =0; i < dim; i++){
         uu->rhoU[i] = 0.0;
     }
 
-    if (xDt <= prob->starState.ustar) {  //# left of contact surface
-        if (prob->starState.pstar <= prob->setup.pL) {  // # rarefaction
-            if (xDt <= prob->starState.SHL) {
-                uu->rho = prob->setup.rhoL;
-                p = prob->setup.pL;
-                uu->rhoU[0] = prob->setup.uL*uu->rho;
-            }else if (xDt <=prob->starState.STL) {  //#SHL < x / t < STL
-                PetscReal tmp = 2. / prob->starState.gamp1 + (prob->starState.gamm1 / prob->starState.gamp1 / aL) * (prob->setup.uL - xDt);
-                uu->rho = prob->setup.rhoL * pow(tmp, 2. / prob->starState.gamm1);
-                uu->rhoU[0] = uu->rho * (2. / prob->starState.gamp1) * (aL + 0.5 * prob->starState.gamm1 * prob->setup.uL + xDt);
-                p = prob->setup.pL * pow(tmp, 2. * prob->setup.gamma / prob->starState.gamm1);
+    if (xDt <= starState->ustar) {  //# left of contact surface
+        if (starState->pstar <= setup->pL) {  // # rarefaction
+            if (xDt <= starState->SHL) {
+                uu->rho = setup->rhoL;
+                p = setup->pL;
+                uu->rhoU[0] = setup->uL*uu->rho;
+            }else if (xDt <=starState->STL) {  //#SHL < x / t < STL
+                PetscReal tmp = 2. / starState->gamp1 + (starState->gamm1 / starState->gamp1 / aL) * (setup->uL - xDt);
+                uu->rho = setup->rhoL * pow(tmp, 2. / starState->gamm1);
+                uu->rhoU[0] = uu->rho * (2. / starState->gamp1) * (aL + 0.5 * starState->gamm1 * setup->uL + xDt);
+                p = setup->pL * pow(tmp, 2. * setup->gamma / starState->gamm1);
             }else {  //# STL < x/t < u*
-                uu->rho = prob->starState.rhostarL;
-                p = prob->starState.pstar;
-                uu->rhoU[0] = uu->rho * prob->starState.ustar;
+                uu->rho = starState->rhostarL;
+                p = starState->pstar;
+                uu->rhoU[0] = uu->rho * starState->ustar;
             }
         }else{  //# shock
-            if (xDt<= prob->starState.SL) {  // # xDt < SL
-                uu->rho = prob->setup.rhoL;
-                p = prob->setup.pL;
-                uu->rhoU[0] = uu->rho * prob->setup.uL;
+            if (xDt<= starState->SL) {  // # xDt < SL
+                uu->rho = setup->rhoL;
+                p = setup->pL;
+                uu->rhoU[0] = uu->rho * setup->uL;
             }else {  //# SL < xDt < ustar
-                uu->rho = prob->starState.rhostarL;
-                p = prob->starState.pstar;
-                uu->rhoU[0] = uu->rho * prob->starState.ustar;
+                uu->rho = starState->rhostarL;
+                p = starState->pstar;
+                uu->rhoU[0] = uu->rho * starState->ustar;
             }
         }
     }else{//# right of contact surface
-        if (prob->starState.pstar<=prob->setup.pR) {  //# rarefaction
-            if (xDt>= prob->starState.SHR) {
-                uu->rho = prob->setup.rhoR;
-                p = prob->setup.pR;
-                uu->rhoU[0] = uu->rho * prob->setup.uR;
-            }else if (xDt >= prob->starState.STR) {  // # SHR < x/t < SHR
-                PetscReal tmp = 2./prob->starState.gamp1 - (prob->starState.gamm1/prob->starState.gamp1/aR)*(prob->setup.uR-xDt);
-                uu->rho = prob->setup.rhoR*PetscPowReal(tmp,2./prob->starState.gamm1);
-                uu->rhoU[0] = uu->rho * (2./prob->starState.gamp1)*(-aR + 0.5*prob->starState.gamm1*prob->setup.uR+xDt);
-                p = prob->setup.pR*PetscPowReal(tmp,2.*prob->setup.gamma/prob->starState.gamm1);
+        if (starState->pstar<=setup->pR) {  //# rarefaction
+            if (xDt>= starState->SHR) {
+                uu->rho = setup->rhoR;
+                p = setup->pR;
+                uu->rhoU[0] = uu->rho * setup->uR;
+            }else if (xDt >= starState->STR) {  // # SHR < x/t < SHR
+                PetscReal tmp = 2./starState->gamp1 - (starState->gamm1/starState->gamp1/aR)*(setup->uR-xDt);
+                uu->rho = setup->rhoR*PetscPowReal(tmp,2./starState->gamm1);
+                uu->rhoU[0] = uu->rho * (2./starState->gamp1)*(-aR + 0.5*starState->gamm1*setup->uR+xDt);
+                p = setup->pR*PetscPowReal(tmp,2.*setup->gamma/starState->gamm1);
             }else{ //# u* < x/t < STR
-                uu->rho = prob->starState.rhostarR;
-                p = prob->starState.pstar;
-                uu->rhoU[0] = uu->rho * prob->starState.ustar;
+                uu->rho = starState->rhostarR;
+                p = starState->pstar;
+                uu->rhoU[0] = uu->rho * starState->ustar;
             }
         }else {//# shock
-            if (xDt>= prob->starState.SR) {  // # xDt > SR
-                uu->rho = prob->setup.rhoR;
-                p = prob->setup.pR;
-                uu->rhoU[0] = uu->rho * prob->setup.uR;
+            if (xDt>= starState->SR) {  // # xDt > SR
+                uu->rho = setup->rhoR;
+                p = setup->pR;
+                uu->rhoU[0] = uu->rho * setup->uR;
             }else {//#ustar < xDt < SR
-                   uu->rho = prob->starState.rhostarR;
-                   p = prob->starState.pstar;
-                   uu->rhoU[0] = uu->rho * prob->starState.ustar;
+                uu->rho = starState->rhostarR;
+                p = starState->pstar;
+                uu->rhoU[0] = uu->rho * starState->ustar;
             }
         }
     }
-    PetscReal e =  p/prob->starState.gamm1/uu->rho;
+    PetscReal e =  p/starState->gamm1/uu->rho;
     PetscReal E = e + 0.5*(uu->rhoU[0]/uu->rho)*(uu->rhoU[0]/uu->rho);
     uu->rhoE = uu->rho*E;
+}
+
+
+static PetscErrorCode SetExactSolution(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx){
+    EulerNode       *uu  = (EulerNode*)u;
+    ProblemSetup* prob = (ProblemSetup*)ctx;
+
+    PetscReal xDt = (x[0]-prob->setup.length/2)/time;
+    SetExactSolutionAtPoint(dim, xDt, &prob->setup, &prob->starState, uu);
     return 0;
 }
 
@@ -290,7 +294,39 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     PetscFunctionReturn(0);
 }
 
-static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const EulerNode *xL, const EulerNode *xR, PetscInt numConstants, const PetscScalar constants[], PetscScalar *flux, void* phys) {
+/* PetscReal* => EulerNode* conversion */
+static PetscErrorCode PhysicsBoundary_Euler_Left(PetscReal time, const PetscReal *c, const PetscReal *n, const PetscScalar *a_xI, PetscScalar *a_xG, void *ctx)
+{
+    const EulerNode *xI = (const EulerNode*)a_xI;
+    EulerNode       *xG = (EulerNode*)a_xG;
+    ProblemSetup* prob = (ProblemSetup*)ctx;
+    PetscFunctionBeginUser;
+    xG->rho = prob->setup.rhoL;
+    PetscReal eT = prob->setup.rhoL*((prob->setup.pL /(prob->setup.gamma -1) / prob->setup.rhoL) + 0.5 * prob->setup.uL * prob->setup.uL);
+    xG->rhoE = eT;
+    xG->rhoU[0] = prob->setup.rhoL * prob->setup.uL;
+    xG->rhoU[1] = 0.0;
+
+    PetscFunctionReturn(0);
+}
+
+/* PetscReal* => EulerNode* conversion */
+static PetscErrorCode PhysicsBoundary_Euler_Right(PetscReal time, const PetscReal *c, const PetscReal *n, const PetscScalar *a_xI, PetscScalar *a_xG, void *ctx)
+{
+    const EulerNode *xI = (const EulerNode*)a_xI;
+    EulerNode       *xG = (EulerNode*)a_xG;
+    ProblemSetup*        prob = (ProblemSetup*)ctx;
+    PetscFunctionBeginUser;
+    xG->rho = prob->setup.rhoR;
+    PetscReal eT = prob->setup.rhoR*((prob->setup.pR /(prob->setup.gamma -1)/ prob->setup.rhoR) + 0.5 * prob->setup.uR * prob->setup.uR);
+    xG->rhoE = eT;
+    xG->rhoU[0] = prob->setup.rhoR * prob->setup.uR;
+    xG->rhoU[1] = 0.0;
+
+    PetscFunctionReturn(0);
+}
+
+static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const EulerNode *xL, const EulerNode *xR, PetscInt numConstants, const PetscScalar constants[], EulerNode *flux, void* ctx) {
 //    dim	- The spatial dimension
 //    Nf	- The number of fields
 //    x	- The coordinates at a point on the interface
@@ -301,7 +337,52 @@ static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const Pe
 //    numConstants	- number of constant parameters
 //    constants	- constant parameters
 //    ctx	- optional user context
+    ProblemSetup* prob = (ProblemSetup*)ctx;
 
+    // this is a hack, only add in flux from left/right
+    if(PetscAbs(n[0]) > 1E-5) {
+        // Setup Godunov
+        Setup currentValues;
+
+        currentValues.gamma = prob->setup.gamma;
+        currentValues.length = prob->setup.length;
+
+        currentValues.rhoL = xL->rho;
+        currentValues.uL = xL->rhoU[0] / currentValues.rhoL;
+        PetscReal eL = (xL->rhoE / currentValues.rhoL) - 0.5 * currentValues.uL * currentValues.uL;
+        currentValues.pL = (prob->setup.gamma-1) * currentValues.rhoL * eL;
+
+        currentValues.rhoR = xR->rho;
+        currentValues.uR = xR->rhoU[0] / currentValues.rhoR;
+        PetscReal eR = (xR->rhoE / currentValues.rhoR) - 0.5 * currentValues.uR * currentValues.uR;
+        currentValues.pR = (prob->setup.gamma-1) * currentValues.rhoR * eR;
+
+        StarState result;
+        DetermineStarState(&currentValues, &result);
+        EulerNode exact;
+        SetExactSolutionAtPoint(dim, 0.0, &currentValues, &result, &exact);
+
+
+        PetscReal rho = exact.rho;
+        PetscReal u = exact.rhoU[0]/rho;
+        PetscReal e = (exact.rhoE / rho) - 0.5 * u * u;
+        PetscReal p = (prob->setup.gamma-1) * rho * e;
+
+        flux->rho = (rho * u) * PetscSignReal(n[0]);
+        flux->rhoU[0] = (rho * u * u + p)* PetscSignReal(n[0]);
+        flux->rhoU[1] = 0.0;
+        PetscReal et = e + 0.5 * u * u;
+        flux->rhoE = (rho * u * (et + p / rho))* PetscSignReal(n[0]);
+
+        printf("%f,%f %f %f %f %f\n", qp[0], qp[1], flux->rho, flux->rhoU[0], flux->rhoE, n[0]);
+
+    }else{
+        flux->rho = 0.0;
+        flux->rhoU[0] =0.0;
+        flux->rhoU[1] = 0.0;
+        flux->rhoE = 0.0;
+
+    }
 
 //    F[0][i]=rho[i]*u[i]
 //    F[1][i]=rho[i]*u[i]*u[i]+p[i]
@@ -337,11 +418,17 @@ int main(int argc, char **argv)
 
     ierr = TSCreate(PETSC_COMM_WORLD, &ts);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
+    ierr = TSSetType(ts, TSSSP);CHKERRQ(ierr);
+
     //PetscErrorCode DMPlexCreateBoxMesh(MPI_Comm comm, PetscInt dim, PetscBool simplex, const PetscInt faces[], const PetscReal lower[], const PetscReal upper[], const DMBoundaryType periodicity[], PetscBool interpolate, DM *dm)
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {problem.setup.length, 1};
-    PetscInt nx[] = {1000, 1};
-    ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, DIM, PETSC_FALSE, nx, start, end, NULL, PETSC_TRUE, &dm);CHKERRQ(ierr);
+    PetscInt nx[] = {25, 1};
+    DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
+    ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, DIM, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
+    puts("after DMPlexCreateBoxMesh Call");
+    DMView(dm, PETSC_VIEWER_STDOUT_WORLD);
+
     ierr = DMSetFromOptions(dm);CHKERRQ(ierr);
 
     {
@@ -350,6 +437,12 @@ int main(int argc, char **argv)
         ierr = DMDestroy(&dm);CHKERRQ(ierr);
         dm   = gdm;
     }
+    ierr = DMView(dm, PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);
+    ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
+
+    DMLabel label;
+    ierr = DMGetLabel(dm, "marker", &label );CHKERRQ(ierr);
+    ierr = DMLabelView(label, PETSC_VIEWER_STDOUT_WORLD);;CHKERRQ(ierr);
 
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
     ierr = TSSetDM(ts, dm);
@@ -407,13 +500,23 @@ int main(int argc, char **argv)
     ierr = DMCreateGlobalVector(dm, &X);CHKERRQ(ierr);
     ierr = PetscObjectSetName((PetscObject) X, "solution");CHKERRQ(ierr);
 
-    ierr = TSSetType(ts, TSSSP);CHKERRQ(ierr);
-    ierr = TSSetDM(ts, dm);CHKERRQ(ierr);
+
+//    ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, NULL);CHKERRQ(ierr);
+//    ierr = DMTSSetIFunctionLocal(dm, DMPlexTSComputeIFunctionFEM, NULL);CHKERRQ(ierr);
+//    ierr = DMTSSetIJacobianLocal(dm, DMPlexTSComputeIJacobianFEM, NULL);CHKERRQ(ierr);
+
+    const PetscInt idsLeft[]= {4};
+    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "wall left", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Left, NULL, 1, idsLeft, &problem);CHKERRQ(ierr);
+    const PetscInt idsRight[]= {2};
+    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "wall right", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Right, NULL, 1, idsRight, &problem);CHKERRQ(ierr);
 //    ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, NULL);CHKERRQ(ierr);
     ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, NULL);CHKERRQ(ierr);//TODO: This is were we set the RHS function
     ierr = TSSetMaxTime(ts,problem.setup.maxTime);CHKERRQ(ierr);
     ierr = TSMonitorSet(ts, MonitorError, &problem, NULL);CHKERRQ(ierr);
-    ierr = TSSetTimeStep(ts, 0.008);CHKERRQ(ierr);
+    ierr = TSSetTimeStep(ts, 0.0008);CHKERRQ(ierr);
+    ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
+
+
     // set the initial conditions
     PetscErrorCode     (*func[1]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {SetExactSolution};
     void* ctxs[1] ={&problem};
@@ -423,7 +526,8 @@ int main(int argc, char **argv)
 
     ierr = TSSolve(ts,X);CHKERRQ(ierr);
 //    ierr = TSGetSolveTime(ts,&ftime);CHKERRQ(ierr);
-//    ierr = TSGetStepNumber(ts,&nsteps);CHKERRQ(ierr);
+//    ierr = TSGetStepNumber(ts,&nsteps);
+    //    CHKERRQ(ierr);
 
 
     return PetscFinalize();
