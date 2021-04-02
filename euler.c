@@ -224,13 +224,35 @@ static void SetExactSolutionAtPoint(PetscInt dim, PetscReal xDt, const Setup* se
     uu->rhoE = uu->rho*E;
 }
 
-
-static PetscErrorCode SetExactSolution(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx){
-    EulerNode       *uu  = (EulerNode*)u;
+static PetscErrorCode SetExactSolutionRho(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx){
     ProblemSetup* prob = (ProblemSetup*)ctx;
 
     PetscReal xDt = (x[0]-prob->setup.length/2)/time;
-    SetExactSolutionAtPoint(dim, xDt, &prob->setup, &prob->starState, uu);
+    EulerNode uu;
+    SetExactSolutionAtPoint(dim, xDt, &prob->setup, &prob->starState, &uu);
+
+    u[0] = uu.rho;
+    return 0;
+}
+
+static PetscErrorCode SetExactSolutionRhoU(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx){
+    ProblemSetup* prob = (ProblemSetup*)ctx;
+
+    PetscReal xDt = (x[0]-prob->setup.length/2)/time;
+    EulerNode uu;
+    SetExactSolutionAtPoint(dim, xDt, &prob->setup, &prob->starState, &uu);
+    u[0] = uu.rhoU[0];
+    u[1] = uu.rhoU[1];
+    return 0;
+}
+
+static PetscErrorCode SetExactSolutionRhoE(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx){
+    ProblemSetup* prob = (ProblemSetup*)ctx;
+
+    PetscReal xDt = (x[0]-prob->setup.length/2)/time;
+    EulerNode uu;
+    SetExactSolutionAtPoint(dim, xDt, &prob->setup, &prob->starState, &uu);
+    u[0] = uu.rhoE;
     return 0;
 }
 
@@ -281,8 +303,8 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     ierr = PetscObjectSetName((PetscObject)e, "exact");CHKERRQ(ierr);
 
     // Set the values
-    PetscErrorCode     (*func[1]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {SetExactSolution};
-    void* ctxs[1] ={ctx};
+    PetscErrorCode     (*func[3]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {{SetExactSolutionRho, SetExactSolutionRhoU, SetExactSolutionRhoE}};
+    void* ctxs[3] ={ctx, ctx, ctx};
     ierr    = DMProjectFunction(dm,time,func,ctxs,INSERT_ALL_VALUES,e);CHKERRQ(ierr);
 
     // just print to a file for now
@@ -374,7 +396,7 @@ static PetscErrorCode  ComputeTimeStep(TS ts){
     return 0;
 }
 
-static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const EulerNode *xL, const EulerNode *xR, PetscInt numConstants, const PetscScalar constants[], EulerNode *flux, void* ctx) {
+static void ComputeFluxRho(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const EulerNode *xL, const EulerNode *xR, PetscInt numConstants, const PetscScalar constants[], PetscReal *flux, void* ctx) {
 //    dim	- The spatial dimension
 //    Nf	- The number of fields
 //    x	- The coordinates at a point on the interface
@@ -416,19 +438,153 @@ static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const Pe
         PetscReal e = (exact.rhoE / rho) - 0.5 * u * u;
         PetscReal p = (prob->setup.gamma-1) * rho * e;
 
-        flux->rho = (rho * u) * PetscSignReal(n[0]);
-        flux->rhoU[0] = (rho * u * u + p)* PetscSignReal(n[0]);
-        flux->rhoU[1] = 0.0;
-        PetscReal et = e + 0.5 * u * u;
-        flux->rhoE = (rho * u * (et + p / rho))* PetscSignReal(n[0]);
+        flux[0] = (rho * u) * PetscSignReal(n[0]);
+//        flux->rhoU[0] = (rho * u * u + p)* PetscSignReal(n[0]);
+//        flux->rhoU[1] = 0.0;
+//        PetscReal et = e + 0.5 * u * u;
+//        flux->rhoE = (rho * u * (et + p / rho))* PetscSignReal(n[0]);
 
 //        printf("%f,%f %f %f %f %f\n", qp[0], qp[1], flux->rho, flux->rhoU[0], flux->rhoE, n[0]);
 
     }else{
-        flux->rho = 0.0;
-        flux->rhoU[0] =0.0;
-        flux->rhoU[1] = 0.0;
-        flux->rhoE = 0.0;
+        flux[0] = 0.0;
+//        flux->rhoU[0] =0.0;
+//        flux->rhoU[1] = 0.0;
+//        flux->rhoE = 0.0;
+
+    }
+
+//    F[0][i]=rho[i]*u[i]
+//    F[1][i]=rho[i]*u[i]*u[i]+p[i]
+//    et = e[i]+0.5*u[i]*u[i]
+//    F[2][i]=rho[i]*u[i]*(et+p[i]/rho[i])
+
+}
+
+
+static void ComputeFluxU(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const EulerNode *xL, const EulerNode *xR, PetscInt numConstants, const PetscScalar constants[], PetscReal *flux, void* ctx) {
+//    dim	- The spatial dimension
+//    Nf	- The number of fields
+//    x	- The coordinates at a point on the interface
+//    n	- The normal vector to the interface
+//    uL	- The state vector to the left of the interface
+//    uR	- The state vector to the right of the interface
+//    flux	- output array of flux through the interface
+//    numConstants	- number of constant parameters
+//    constants	- constant parameters
+//    ctx	- optional user context
+    ProblemSetup* prob = (ProblemSetup*)ctx;
+
+    // this is a hack, only add in flux from left/right
+    if(PetscAbs(n[0]) > 1E-5) {
+        // Setup Godunov
+        Setup currentValues;
+
+        currentValues.gamma = prob->setup.gamma;
+        currentValues.length = prob->setup.length;
+
+        currentValues.rhoL = xL->rho;
+        currentValues.uL = xL->rhoU[0] / currentValues.rhoL;
+        PetscReal eL = (xL->rhoE / currentValues.rhoL) - 0.5 * currentValues.uL * currentValues.uL;
+        currentValues.pL = (prob->setup.gamma-1) * currentValues.rhoL * eL;
+
+        currentValues.rhoR = xR->rho;
+        currentValues.uR = xR->rhoU[0] / currentValues.rhoR;
+        PetscReal eR = (xR->rhoE / currentValues.rhoR) - 0.5 * currentValues.uR * currentValues.uR;
+        currentValues.pR = (prob->setup.gamma-1) * currentValues.rhoR * eR;
+
+        StarState result;
+        DetermineStarState(&currentValues, &result);
+        EulerNode exact;
+        SetExactSolutionAtPoint(dim, 0.0, &currentValues, &result, &exact);
+
+
+        PetscReal rho = exact.rho;
+        PetscReal u = exact.rhoU[0]/rho;
+        PetscReal e = (exact.rhoE / rho) - 0.5 * u * u;
+        PetscReal p = (prob->setup.gamma-1) * rho * e;
+
+//        flux[0] = (rho * u) * PetscSignReal(n[0]);
+        flux[0] = (rho * u * u + p)* PetscSignReal(n[0]);
+        flux[1] = 0.0;
+//        PetscReal et = e + 0.5 * u * u;
+//        flux->rhoE = (rho * u * (et + p / rho))* PetscSignReal(n[0]);
+
+//        printf("%f,%f %f %f %f %f\n", qp[0], qp[1], flux->rho, flux->rhoU[0], flux->rhoE, n[0]);
+
+    }else{
+        flux[0] = 0.0;
+        flux[1] = 0.0;
+//        flux->rhoU[0] =0.0;
+//        flux->rhoU[1] = 0.0;
+//        flux->rhoE = 0.0;
+
+    }
+
+//    F[0][i]=rho[i]*u[i]
+//    F[1][i]=rho[i]*u[i]*u[i]+p[i]
+//    et = e[i]+0.5*u[i]*u[i]
+//    F[2][i]=rho[i]*u[i]*(et+p[i]/rho[i])
+
+}
+
+
+static void ComputeFluxE(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const EulerNode *xL, const EulerNode *xR, PetscInt numConstants, const PetscScalar constants[], PetscReal *flux, void* ctx) {
+//    dim	- The spatial dimension
+//    Nf	- The number of fields
+//    x	- The coordinates at a point on the interface
+//    n	- The normal vector to the interface
+//    uL	- The state vector to the left of the interface
+//    uR	- The state vector to the right of the interface
+//    flux	- output array of flux through the interface
+//    numConstants	- number of constant parameters
+//    constants	- constant parameters
+//    ctx	- optional user context
+    ProblemSetup* prob = (ProblemSetup*)ctx;
+
+    // this is a hack, only add in flux from left/right
+    if(PetscAbs(n[0]) > 1E-5) {
+        // Setup Godunov
+        Setup currentValues;
+
+        currentValues.gamma = prob->setup.gamma;
+        currentValues.length = prob->setup.length;
+
+        currentValues.rhoL = xL->rho;
+        currentValues.uL = xL->rhoU[0] / currentValues.rhoL;
+        PetscReal eL = (xL->rhoE / currentValues.rhoL) - 0.5 * currentValues.uL * currentValues.uL;
+        currentValues.pL = (prob->setup.gamma-1) * currentValues.rhoL * eL;
+
+        currentValues.rhoR = xR->rho;
+        currentValues.uR = xR->rhoU[0] / currentValues.rhoR;
+        PetscReal eR = (xR->rhoE / currentValues.rhoR) - 0.5 * currentValues.uR * currentValues.uR;
+        currentValues.pR = (prob->setup.gamma-1) * currentValues.rhoR * eR;
+
+        StarState result;
+        DetermineStarState(&currentValues, &result);
+        EulerNode exact;
+        SetExactSolutionAtPoint(dim, 0.0, &currentValues, &result, &exact);
+
+
+        PetscReal rho = exact.rho;
+        PetscReal u = exact.rhoU[0]/rho;
+        PetscReal e = (exact.rhoE / rho) - 0.5 * u * u;
+        PetscReal p = (prob->setup.gamma-1) * rho * e;
+
+//        flux[0] = (rho * u) * PetscSignReal(n[0]);
+//        flux[0] = (rho * u * u + p)* PetscSignReal(n[0]);
+//        flux[1] = 0.0;
+        PetscReal et = e + 0.5 * u * u;
+        flux[0] = (rho * u * (et + p / rho))* PetscSignReal(n[0]);
+
+//        printf("%f,%f %f %f %f %f\n", qp[0], qp[1], flux->rho, flux->rhoU[0], flux->rhoE, n[0]);
+
+    }else{
+        flux[0] = 0.0;
+//        flux[1] = 0.0;
+//        flux->rhoU[0] =0.0;
+//        flux->rhoU[1] = 0.0;
+//        flux->rhoE = 0.0;
 
     }
 
@@ -475,7 +631,7 @@ int main(int argc, char **argv)
     problem.setup.maxTime = 0.15;
     problem.setup.length = 1;
     problem.setup.gamma = 1.4;
-    problem.cfl = 4;
+    problem.cfl = 0.5;
 
     ierr = TSCreate(PETSC_COMM_WORLD, &ts);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
@@ -512,48 +668,55 @@ int main(int argc, char **argv)
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
 
     // setup the FV
-    PetscFV           fvm;
-    ierr = PetscFVCreate(PETSC_COMM_WORLD, &fvm);CHKERRQ(ierr);
-    ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
-    ierr = PetscFVSetNumComponents(fvm, DIM+2);CHKERRQ(ierr);
-    ierr = PetscFVSetSpatialDimension(fvm, DIM);CHKERRQ(ierr);
-    ierr = PetscObjectSetName((PetscObject) fvm,"");CHKERRQ(ierr);
 
     {// Setup the fields
         PetscInt f, dof;
         for (f=0,dof=0; f < 3; f++) {
             PetscInt newDof = PhysicsFields[f].components;
 
-            if (newDof == 1) {
-                ierr = PetscFVSetComponentName(fvm,dof,PhysicsFields[f].fieldName);CHKERRQ(ierr);
-            }
-            else {
-                PetscInt j;
+//            if (newDof == 1) {
+                PetscFV           fvm;
+                ierr = PetscFVCreate(PETSC_COMM_WORLD, &fvm);CHKERRQ(ierr);
 
-                for (j = 0; j < newDof; j++) {
-                    char     compName[256]  = "Unknown";
+                ierr = PetscFVSetFromOptions(fvm);CHKERRQ(ierr);
+                ierr = PetscFVSetNumComponents(fvm, newDof);CHKERRQ(ierr);
+                ierr = PetscFVSetSpatialDimension(fvm, DIM);CHKERRQ(ierr);
+                ierr = PetscObjectSetName((PetscObject) fvm,PhysicsFields[f].fieldName);CHKERRQ(ierr);
 
-                    ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields[f].fieldName,j);CHKERRQ(ierr);
-                    ierr = PetscFVSetComponentName(fvm,dof+j,compName);CHKERRQ(ierr);
-                }
-            }
-            dof += newDof;
+                /* FV is now structured with one field having all physics as components */
+                ierr = DMAddField(dm, NULL, (PetscObject) fvm);CHKERRQ(ierr);
+//            }
+//            else {
+//                PetscInt j;
+//
+//                for (j = 0; j < newDof; j++) {
+//                    char     compName[256]  = "Unknown";
+//
+//                    ierr = PetscSNPrintf(compName,sizeof(compName),"%s_%d",PhysicsFields[f].fieldName,j);CHKERRQ(ierr);
+//                    ierr = PetscFVSetComponentName(fvm,dof+j,compName);CHKERRQ(ierr);
+//                }
+//            }
+//            dof += newDof;
         }
     }
 
     // Compute the star state
     ierr = DetermineStarState(&problem.setup, &problem.starState);CHKERRQ(ierr);
 
-    /* FV is now structured with one field having all physics as components */
+
+
     PetscDS           prob;
-    ierr = DMAddField(dm, NULL, (PetscObject) fvm);CHKERRQ(ierr);
     ierr = DMCreateDS(dm);CHKERRQ(ierr);
     ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
     ierr = DMSetApplicationContext(dm, &problem);CHKERRQ(ierr);
 
     //TODO: Add flux
-    ierr = PetscDSSetRiemannSolver(prob, 0,ComputeFlux);CHKERRQ(ierr);
+    ierr = PetscDSSetRiemannSolver(prob, 0,ComputeFluxRho);CHKERRQ(ierr);
     ierr = PetscDSSetContext(prob, 0, &problem);CHKERRQ(ierr);
+    ierr = PetscDSSetRiemannSolver(prob, 1,ComputeFluxU);CHKERRQ(ierr);
+    ierr = PetscDSSetContext(prob, 1, &problem);CHKERRQ(ierr);
+    ierr = PetscDSSetRiemannSolver(prob, 2,ComputeFluxE);CHKERRQ(ierr);
+    ierr = PetscDSSetContext(prob, 2, &problem);CHKERRQ(ierr);
     ierr = PetscDSSetFromOptions(prob);CHKERRQ(ierr);
     //TODO: Apply boundary
 
@@ -581,8 +744,8 @@ int main(int argc, char **argv)
     ierr = TSSetPostStep(ts, ComputeTimeStep);CHKERRQ(ierr);
 
     // set the initial conditions
-    PetscErrorCode     (*func[1]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {SetExactSolution};
-    void* ctxs[1] ={&problem};
+    PetscErrorCode     (*func[3]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {SetExactSolutionRho, SetExactSolutionRhoU, SetExactSolutionRhoE};
+    void* ctxs[3] ={&problem, &problem, &problem};
     ierr    = DMProjectFunction(dm,0.0,func,ctxs,INSERT_ALL_VALUES,X);CHKERRQ(ierr);
 
 
