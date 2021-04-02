@@ -36,6 +36,7 @@ typedef struct {
 typedef struct {
     StarState starState;
     Setup setup;
+    PetscReal cfl;
 } ProblemSetup;
 
 typedef struct{
@@ -326,6 +327,53 @@ static PetscErrorCode PhysicsBoundary_Euler_Right(PetscReal time, const PetscRea
     PetscFunctionReturn(0);
 }
 
+static PetscErrorCode  ComputeTimeStep(TS ts){
+    DM dm;
+    PetscErrorCode ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
+    Vec v;
+    TSGetSolution(ts, &v);
+    ProblemSetup *problem;
+    ierr = DMGetApplicationContext(dm, &problem);CHKERRQ(ierr);
+
+
+    Vec                cellgeom;
+    ierr = DMPlexGetGeometryFVM(dm, NULL, &cellgeom, NULL);CHKERRQ(ierr);
+    PetscInt cStart, cEnd;
+    ierr = DMPlexGetSimplexOrBoxCells(dm, 0, &cStart, &cEnd);CHKERRQ(ierr);
+    DM dmCell;
+    ierr = VecGetDM(cellgeom, &dmCell);CHKERRQ(ierr);
+    const PetscScalar *cgeom;
+    ierr = VecGetArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+    const PetscScalar      *x;
+    ierr = VecGetArrayRead(v, &x);CHKERRQ(ierr);
+
+    PetscReal dtMin = 1.0;
+
+    for (PetscInt c = cStart; c < cEnd; ++c) {
+        PetscFVCellGeom       *cg;
+        const EulerNode           *xc;
+
+        ierr = DMPlexPointLocalRead(dmCell, c, cgeom, &cg);CHKERRQ(ierr);
+        ierr = DMPlexPointGlobalFieldRead(dm, c, 0, x, &xc);CHKERRQ(ierr);
+
+        PetscReal rho = xc->rho;
+        PetscReal u = xc->rhoU[0]/rho;
+        PetscReal e = (xc->rhoE / rho) - 0.5 * u * u;
+        PetscReal p = (problem->setup.gamma-1) * rho * e;
+
+        PetscReal a = PetscSqrtReal(problem->setup.gamma*p/rho);
+        PetscReal dt = problem->cfl*cg->volume/(a + PetscAbsReal(u));
+        dtMin = PetscMin(dtMin, dt);
+    }
+
+    printf("TimeStep: %f\n", dtMin);
+    ierr = TSSetTimeStep(ts, dtMin);CHKERRQ(ierr);
+
+    ierr = VecRestoreArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+    ierr = VecRestoreArrayRead(v, &x);CHKERRQ(ierr);
+    return 0;
+}
+
 static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const PetscReal *n, const EulerNode *xL, const EulerNode *xR, PetscInt numConstants, const PetscScalar constants[], EulerNode *flux, void* ctx) {
 //    dim	- The spatial dimension
 //    Nf	- The number of fields
@@ -374,7 +422,7 @@ static void ComputeFlux(PetscInt dim, PetscInt Nf, const PetscReal *qp, const Pe
         PetscReal et = e + 0.5 * u * u;
         flux->rhoE = (rho * u * (et + p / rho))* PetscSignReal(n[0]);
 
-        printf("%f,%f %f %f %f %f\n", qp[0], qp[1], flux->rho, flux->rhoU[0], flux->rhoE, n[0]);
+//        printf("%f,%f %f %f %f %f\n", qp[0], qp[1], flux->rho, flux->rhoU[0], flux->rhoE, n[0]);
 
     }else{
         flux->rho = 0.0;
@@ -406,24 +454,37 @@ int main(int argc, char **argv)
     ProblemSetup problem;
 
     // case 1 - Sod problem
+//    problem.setup.rhoL=1.0;
+//    problem.setup.uL=0.0;
+//    problem.setup.pL=1.0;
+//    problem.setup.rhoR=0.125;
+//    problem.setup.uR=0.0;
+//    problem.setup.pR=0.1;
+//    problem.setup.maxTime = 0.25;
+//    problem.setup.length = 1;
+//    problem.setup.gamma = 1.4;
+//    problem.cfl = .5;
+
+    // case 2 - 123 problem - expansion left and expansion right
     problem.setup.rhoL=1.0;
-    problem.setup.uL=0.0;
-    problem.setup.pL=1.0;
-    problem.setup.rhoR=0.125;
-    problem.setup.uR=0.0;
-    problem.setup.pR=0.1;
-    problem.setup.maxTime = 0.25;
+    problem.setup.uL=-2.0;
+    problem.setup.pL=0.4;
+    problem.setup.rhoR=1.0;
+    problem.setup.uR=2.0;
+    problem.setup.pR=0.4;
+    problem.setup.maxTime = 0.15;
     problem.setup.length = 1;
     problem.setup.gamma = 1.4;
+    problem.cfl = 4;
 
     ierr = TSCreate(PETSC_COMM_WORLD, &ts);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
-    ierr = TSSetType(ts, TSSSP);CHKERRQ(ierr);
+    ierr = TSSetType(ts, TSCN);CHKERRQ(ierr);
 
     //PetscErrorCode DMPlexCreateBoxMesh(MPI_Comm comm, PetscInt dim, PetscBool simplex, const PetscInt faces[], const PetscReal lower[], const PetscReal upper[], const DMBoundaryType periodicity[], PetscBool interpolate, DM *dm)
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {problem.setup.length, 1};
-    PetscInt nx[] = {25, 1};
+    PetscInt nx[] = {100, 1};
     DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, DIM, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
     puts("after DMPlexCreateBoxMesh Call");
@@ -488,6 +549,7 @@ int main(int argc, char **argv)
     ierr = DMAddField(dm, NULL, (PetscObject) fvm);CHKERRQ(ierr);
     ierr = DMCreateDS(dm);CHKERRQ(ierr);
     ierr = DMGetDS(dm, &prob);CHKERRQ(ierr);
+    ierr = DMSetApplicationContext(dm, &problem);CHKERRQ(ierr);
 
     //TODO: Add flux
     ierr = PetscDSSetRiemannSolver(prob, 0,ComputeFlux);CHKERRQ(ierr);
@@ -504,6 +566,7 @@ int main(int argc, char **argv)
 //    ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, NULL);CHKERRQ(ierr);
 //    ierr = DMTSSetIFunctionLocal(dm, DMPlexTSComputeIFunctionFEM, NULL);CHKERRQ(ierr);
 //    ierr = DMTSSetIJacobianLocal(dm, DMPlexTSComputeIJacobianFEM, NULL);CHKERRQ(ierr);
+//    ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, NULL);CHKERRQ(ierr);//TODO: This is were we set the RHS function
 
     const PetscInt idsLeft[]= {4};
     ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "wall left", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Left, NULL, 1, idsLeft, &problem);CHKERRQ(ierr);
@@ -515,7 +578,7 @@ int main(int argc, char **argv)
     ierr = TSMonitorSet(ts, MonitorError, &problem, NULL);CHKERRQ(ierr);
     ierr = TSSetTimeStep(ts, 0.0008);CHKERRQ(ierr);
     ierr = TSSetFromOptions(ts);CHKERRQ(ierr);
-
+    ierr = TSSetPostStep(ts, ComputeTimeStep);CHKERRQ(ierr);
 
     // set the initial conditions
     PetscErrorCode     (*func[1]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {SetExactSolution};
