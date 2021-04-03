@@ -317,6 +317,20 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     PetscFunctionReturn(0);
 }
 
+static PetscErrorCode PhysicsBoundary_Euler_Mirror(PetscReal time, const PetscReal *c, const PetscReal *n, const PetscScalar *a_xI, PetscScalar *a_xG, void *ctx)
+{
+    const EulerNode *xI = (const EulerNode*)a_xI;
+    EulerNode       *xG = (EulerNode*)a_xG;
+    ProblemSetup* prob = (ProblemSetup*)ctx;
+    PetscFunctionBeginUser;
+    xG->rho = xI->rho;
+    xG->rhoE = xI->rhoE;
+    xG->rhoU[0] = xI->rhoU[0];
+    xG->rhoU[1] = xI->rhoU[1];
+
+    PetscFunctionReturn(0);
+}
+
 /* PetscReal* => EulerNode* conversion */
 static PetscErrorCode PhysicsBoundary_Euler_Left(PetscReal time, const PetscReal *c, const PetscReal *n, const PetscScalar *a_xI, PetscScalar *a_xG, void *ctx)
 {
@@ -410,7 +424,7 @@ static void ComputeFluxRho(PetscInt dim, PetscInt Nf, const PetscReal *qp, const
     ProblemSetup* prob = (ProblemSetup*)ctx;
 
     // this is a hack, only add in flux from left/right
-    if(PetscAbs(n[0]) > 1E-5) {
+//    if(PetscAbs(n[0]) > 1E-5) {
         // Setup Godunov
         Setup currentValues;
 
@@ -444,15 +458,15 @@ static void ComputeFluxRho(PetscInt dim, PetscInt Nf, const PetscReal *qp, const
 //        PetscReal et = e + 0.5 * u * u;
 //        flux->rhoE = (rho * u * (et + p / rho))* PetscSignReal(n[0]);
 
-//        printf("%f,%f %f %f %f %f\n", qp[0], qp[1], flux->rho, flux->rhoU[0], flux->rhoE, n[0]);
+//        printf("%f,%f %f %f,%f\n", qp[0], qp[1], flux[0], n[0], n[1]);mm
 
-    }else{
-        flux[0] = 0.0;
-//        flux->rhoU[0] =0.0;
-//        flux->rhoU[1] = 0.0;
-//        flux->rhoE = 0.0;
-
-    }
+//    }else{
+//        flux[0] = 0.0;
+////        flux->rhoU[0] =0.0;
+////        flux->rhoU[1] = 0.0;
+////        flux->rhoE = 0.0;
+//
+//    }
 
 //    F[0][i]=rho[i]*u[i]
 //    F[1][i]=rho[i]*u[i]*u[i]+p[i]
@@ -735,6 +749,11 @@ int main(int argc, char **argv)
     ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "wall left", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Left, NULL, 1, idsLeft, &problem);CHKERRQ(ierr);
     const PetscInt idsRight[]= {2};
     ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "wall right", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Right, NULL, 1, idsRight, &problem);CHKERRQ(ierr);
+
+    const PetscInt mirror[]= {1, 3};
+    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "mirrorWall", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Mirror, NULL, 2, mirror, &problem);CHKERRQ(ierr);
+
+
 //    ierr = DMTSSetBoundaryLocal(dm, DMPlexTSComputeBoundary, NULL);CHKERRQ(ierr);
     ierr = DMTSSetRHSFunctionLocal(dm, DMPlexTSComputeRHSFunctionFVM, NULL);CHKERRQ(ierr);//TODO: This is were we set the RHS function
     ierr = TSSetMaxTime(ts,problem.setup.maxTime);CHKERRQ(ierr);
