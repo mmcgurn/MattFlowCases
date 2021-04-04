@@ -45,3 +45,6 @@ target_link_libraries(ex11 PUBLIC ablateCore)
 
 add_executable(euler euler.c)
 target_link_libraries(euler PUBLIC ablateCore)
+
+add_executable(eulerFlow eulerFlow.c)
+target_link_libraries(eulerFlow PUBLIC ablateCore)

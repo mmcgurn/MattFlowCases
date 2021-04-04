@@ -491,7 +491,7 @@ static void ComputeFluxRho(PetscInt dim, PetscInt Nf, const PetscReal *qp, const
         PetscReal p = (prob->setup.gamma-1) * rho * e;
 
         flux[0] = rho * u * PetscSignReal(n[0]);
-//        printf("flux qp[%f]: %f  n:%f rL:%f rR:%f\n ", qp[0], flux[0], n[0], currentValues.rhoL, currentValues.rhoR);
+        printf("flux qp[%f]: %f  n:%f rL:%f rR:%f\n ", qp[0], flux[0], n[0], currentValues.rhoL, currentValues.rhoR);
 //        flux->rhoU[0] = (rho * u * u + p)* PetscSignReal(n[0]);
 //        flux->rhoU[1] = 0.0;
 //        PetscReal et = e + 0.5 * u * u;
@@ -691,7 +691,7 @@ int main(int argc, char **argv)
     problem.setup.rhoR=0.125;
     problem.setup.uR=0.0;
     problem.setup.pR=0.1;
-    problem.setup.maxTime = 1.0;
+    problem.setup.maxTime = 0.25;
     problem.setup.length = 1;
     problem.setup.gamma = 1.4;
     problem.cfl = .5;

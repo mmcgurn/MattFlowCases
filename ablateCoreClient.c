@@ -318,7 +318,7 @@ int main(int argc, char *argv[]) {
     // Set initial conditions from the exact solution
     ierr = TSSetComputeInitialCondition(ts, SetInitialConditions);
     CHKERRABORT(PETSC_COMM_WORLD, ierr); /* Must come after SetFromOptions() */
-    ierr = SetInitialConditions(ts, flowData->flowField);
+    ierr = SetInitialConditions(ts, flowData->flowField)_StartProblemSetup;
 
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
     ierr = TSGetTime(ts, &t);
