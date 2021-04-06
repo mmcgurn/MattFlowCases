@@ -434,19 +434,16 @@ int main(int argc, char **argv)
     FlowData flowData;     /* store some of the flow data*/
     ierr = FlowCreate(&flowData);CHKERRQ(ierr);
 
-    // Add in the flow parameters
-    EulerFlowParameters flowParam;
-    flowParam.cfl = 1.0;
-    flowParam.gamma = problem.initialConditions.gamma;
-
-    //Store the flow params
-    CompressibleFlow_SetupFlowParameters(flowData, &flowParam);
-
     //Setup
     CompressibleFlow_SetupDiscretization(flowData, dm);
 
+    // Add in the flow parameters
+    PetscScalar params[TOTAL_COMPRESSIBLE_FLOW_PARAMETERS];
+    params[CFL] = 1.0;
+    params[GAMMA] = problem.initialConditions.gamma;
+
     // set up the finite volume fluxes
-    CompressibleFlow_StartProblemSetup(flowData);
+    CompressibleFlow_StartProblemSetup(flowData, TOTAL_COMPRESSIBLE_FLOW_PARAMETERS, params);
 
     // Add in any boundary conditions
     PetscDS prob;
