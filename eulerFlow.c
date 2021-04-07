@@ -291,6 +291,8 @@ static PetscErrorCode PrintVector(DM dm, Vec v, PetscInt step, const char * file
                 if(xc) {// must be real cell and not ghost
                     PetscReal u0 = xc->rhoU[0] / xc->rho;
                     fprintf(fptr, "%f %f %f %f\n", cg->centroid[0], xc->rho, u0, (xc->rhoE / xc->rho) - 0.5 * u0 * u0);
+                }else{
+                    printf("ghostNode %d\n", c);
                 }
             }
 
@@ -327,6 +329,10 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
 
     PetscPrintf(PETSC_COMM_WORLD, "TS %d: %f\n", step, time);
 
+    Vec g;
+    ierr =  VecGhostGetLocalForm(u,&g);CHKERRQ(ierr);
+
+    VecView(g, PETSC_VIEWER_STDOUT_SELF);
     DMRestoreGlobalVector(dm, &e);
     PetscFunctionReturn(0);
 }
@@ -345,6 +351,17 @@ static PetscErrorCode PhysicsBoundary_Euler_Mirror(PetscReal time, const PetscRe
     PetscFunctionReturn(0);
 }
 
+static bcFunc(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar bcval[]){
+    puts("test");
+}
+
+void bcFunc2(PetscInt dim, PetscInt Nf, PetscInt NfAux,
+const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
+const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
+PetscReal t, const PetscReal x[], const PetscReal n[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f0[]){
+    puts("here2");
+}
+
 /* PetscReal* => EulerNode* conversion */
 static PetscErrorCode PhysicsBoundary_Euler_Left(PetscReal time, const PetscReal *c, const PetscReal *n, const PetscScalar *a_xI, PetscScalar *a_xG, void *ctx)
 {
@@ -352,7 +369,7 @@ static PetscErrorCode PhysicsBoundary_Euler_Left(PetscReal time, const PetscReal
     EulerNode       *xG = (EulerNode*)a_xG;
     ProblemSetup* prob = (ProblemSetup*)ctx;
     PetscFunctionBeginUser;
-    xG->rho = prob->initialConditions.rhoL;
+    xG->rho = 14.2;//prob->initialConditions.rhoL;
     PetscReal eT = prob->initialConditions.rhoL*((prob->initialConditions.pL /(prob->initialConditions.gamma -1) / prob->initialConditions.rhoL) + 0.5 * prob->initialConditions.uL * prob->initialConditions.uL);
     xG->rhoE = eT;
     xG->rhoU[0] = prob->initialConditions.rhoL * prob->initialConditions.uL;
@@ -391,14 +408,14 @@ int main(int argc, char **argv)
     // Create a ts
     ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
     ierr = TSSetProblemType(ts, TS_NONLINEAR);CHKERRQ(ierr);
-    ierr = TSSetType(ts, TSRK);CHKERRQ(ierr);
+    ierr = TSSetType(ts, TSEULER);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
     // Create a mesh
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {1.0, 1};
-    PetscInt nx[] = {100, 1};
+    PetscInt nx[] = {10, 1};
     DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, DIM, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
@@ -444,7 +461,7 @@ int main(int argc, char **argv)
 
     // set up the finite volume fluxes
     CompressibleFlow_StartProblemSetup(flowData, TOTAL_COMPRESSIBLE_FLOW_PARAMETERS, params);
-
+    DMView(flowData->dm, PETSC_VIEWER_STDERR_SELF);
     // Add in any boundary conditions
     PetscDS prob;
     ierr = DMGetDS(flowData->dm, &prob);
@@ -456,6 +473,9 @@ int main(int argc, char **argv)
     const PetscInt mirror[]= {1, 3};
     ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "mirrorWall", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Mirror, NULL, 2, mirror, &problem);CHKERRQ(ierr);
 
+//    const PetscInt idsTest[] = {4};
+//    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL , "test", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Left, NULL, 1, idsTest, &problem);CHKERRQ(ierr);
+//    ierr = PetscDSSetBdResidual(prob, 0, bcFunc2, NULL);CHKERRQ(ierr);
     // Complete the problem setup
     ierr = CompressibleFlow_CompleteProblemSetup(flowData, ts);
 
