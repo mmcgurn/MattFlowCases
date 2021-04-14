@@ -276,7 +276,7 @@ static PetscErrorCode PrintVector(DM dm, Vec v, PetscInt step, const char * file
             FILE *fptr;
             if(r == 0){
                 fptr = fopen(filename, "w");
-                fprintf(fptr, "x rho u e\n");
+                fprintf(fptr, "x rho u e rhou rhoe\n");
             }else{
                 fptr = fopen(filename, "a");
             }
@@ -290,9 +290,7 @@ static PetscErrorCode PrintVector(DM dm, Vec v, PetscInt step, const char * file
                 CHKERRQ(ierr);
                 if(xc) {// must be real cell and not ghost
                     PetscReal u0 = xc->rhoU[0] / xc->rho;
-                    fprintf(fptr, "%f %f %f %f\n", cg->centroid[0], xc->rho, u0, (xc->rhoE / xc->rho) - 0.5 * u0 * u0);
-                }else{
-                    printf("ghostNode %d\n", c);
+                    fprintf(fptr, "%f %f %f %f %f %f\n", cg->centroid[0], xc->rho, u0, (xc->rhoE / xc->rho) - 0.5 * u0 * u0, xc->rhoU[0], xc->rhoE);
                 }
             }
 
@@ -329,10 +327,6 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
 
     PetscPrintf(PETSC_COMM_WORLD, "TS %d: %f\n", step, time);
 
-    Vec g;
-    ierr =  VecGhostGetLocalForm(u,&g);CHKERRQ(ierr);
-
-    VecView(g, PETSC_VIEWER_STDOUT_SELF);
     DMRestoreGlobalVector(dm, &e);
     PetscFunctionReturn(0);
 }
@@ -351,17 +345,6 @@ static PetscErrorCode PhysicsBoundary_Euler_Mirror(PetscReal time, const PetscRe
     PetscFunctionReturn(0);
 }
 
-static bcFunc(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nc, PetscScalar bcval[]){
-    puts("test");
-}
-
-void bcFunc2(PetscInt dim, PetscInt Nf, PetscInt NfAux,
-const PetscInt uOff[], const PetscInt uOff_x[], const PetscScalar u[], const PetscScalar u_t[], const PetscScalar u_x[],
-const PetscInt aOff[], const PetscInt aOff_x[], const PetscScalar a[], const PetscScalar a_t[], const PetscScalar a_x[],
-PetscReal t, const PetscReal x[], const PetscReal n[], PetscInt numConstants, const PetscScalar constants[], PetscScalar f0[]){
-    puts("here2");
-}
-
 /* PetscReal* => EulerNode* conversion */
 static PetscErrorCode PhysicsBoundary_Euler_Left(PetscReal time, const PetscReal *c, const PetscReal *n, const PetscScalar *a_xI, PetscScalar *a_xG, void *ctx)
 {
@@ -369,7 +352,7 @@ static PetscErrorCode PhysicsBoundary_Euler_Left(PetscReal time, const PetscReal
     EulerNode       *xG = (EulerNode*)a_xG;
     ProblemSetup* prob = (ProblemSetup*)ctx;
     PetscFunctionBeginUser;
-    xG->rho = 14.2;//prob->initialConditions.rhoL;
+    xG->rho = prob->initialConditions.rhoL;
     PetscReal eT = prob->initialConditions.rhoL*((prob->initialConditions.pL /(prob->initialConditions.gamma -1) / prob->initialConditions.rhoL) + 0.5 * prob->initialConditions.uL * prob->initialConditions.uL);
     xG->rhoE = eT;
     xG->rhoU[0] = prob->initialConditions.rhoL * prob->initialConditions.uL;
@@ -415,7 +398,7 @@ int main(int argc, char **argv)
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {1.0, 1};
-    PetscInt nx[] = {10, 1};
+    PetscInt nx[] = {100, 1};
     DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, DIM, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
@@ -423,26 +406,26 @@ int main(int argc, char **argv)
     ProblemSetup problem;
 
     // case 1 - Sod problem
-    problem.initialConditions.rhoL=1.0;
-    problem.initialConditions.uL=0.0;
-    problem.initialConditions.pL=1.0;
-    problem.initialConditions.rhoR=0.125;
-    problem.initialConditions.uR=0.0;
-    problem.initialConditions.pR=0.1;
-    problem.initialConditions.maxTime = 0.25;
-    problem.initialConditions.length = 1;
-    problem.initialConditions.gamma = 1.4;
-
-    // case 2
 //    problem.initialConditions.rhoL=1.0;
-//    problem.initialConditions.uL=-2.0;
-//    problem.initialConditions.pL=0.4;
-//    problem.initialConditions.rhoR=1.0;
-//    problem.initialConditions.uR=2.0;
-//    problem.initialConditions.pR=0.4;
-//    problem.initialConditions.maxTime = 0.15;
+//    problem.initialConditions.uL=0.0;
+//    problem.initialConditions.pL=1.0;
+//    problem.initialConditions.rhoR=0.125;
+//    problem.initialConditions.uR=0.0;
+//    problem.initialConditions.pR=0.1;
+//    problem.initialConditions.maxTime = 0.25;
 //    problem.initialConditions.length = 1;
 //    problem.initialConditions.gamma = 1.4;
+
+    // case 2
+    problem.initialConditions.rhoL=1.0;
+    problem.initialConditions.uL=-2.0;
+    problem.initialConditions.pL=0.4;
+    problem.initialConditions.rhoR=1.0;
+    problem.initialConditions.uR=2.0;
+    problem.initialConditions.pR=0.4;
+    problem.initialConditions.maxTime = 0.15;
+    problem.initialConditions.length = 1;
+    problem.initialConditions.gamma = 1.4;
 
     // Compute the star state
     ierr = DetermineStarState(&problem.initialConditions, &problem.starState);CHKERRQ(ierr);
@@ -456,7 +439,7 @@ int main(int argc, char **argv)
 
     // Add in the flow parameters
     PetscScalar params[TOTAL_COMPRESSIBLE_FLOW_PARAMETERS];
-    params[CFL] = 1.0;
+    params[CFL] = 0.5;
     params[GAMMA] = problem.initialConditions.gamma;
 
     // set up the finite volume fluxes
@@ -473,11 +456,9 @@ int main(int argc, char **argv)
     const PetscInt mirror[]= {1, 3};
     ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "mirrorWall", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Mirror, NULL, 2, mirror, &problem);CHKERRQ(ierr);
 
-//    const PetscInt idsTest[] = {4};
-//    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL , "test", "Face Sets", 0, 0, NULL, (void (*)(void)) PhysicsBoundary_Euler_Left, NULL, 1, idsTest, &problem);CHKERRQ(ierr);
-//    ierr = PetscDSSetBdResidual(prob, 0, bcFunc2, NULL);CHKERRQ(ierr);
     // Complete the problem setup
     ierr = CompressibleFlow_CompleteProblemSetup(flowData, ts);
+    CHKERRABORT(PETSC_COMM_WORLD, ierr);
 
     // Name the flow field
     ierr = PetscObjectSetName(((PetscObject)flowData->flowField), "Numerical Solution");
