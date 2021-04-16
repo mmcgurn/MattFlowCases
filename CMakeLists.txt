@@ -51,3 +51,6 @@ target_link_libraries(eulerFlow PUBLIC ablateCore)
 
 add_executable(ex17 ex17.c)
 target_link_libraries(ex17 PUBLIC ablateCore)
+
+add_executable(euler2DMMS euler2DMMS.c)
+target_link_libraries(euler2DMMS PUBLIC ablateCore)
