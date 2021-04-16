@@ -1,4 +1,5 @@
 #include <petsc.h>
+#include <unistd.h>
 #include "compressibleFlow.h"
 #include "mesh.h"
 
@@ -117,9 +118,76 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
 
     PetscFunctionReturn(0);
 }
+//
+//static PetscErrorCode ComputeRHSWithSourceTerms(DM dm, PetscReal time, Vec locXVec, Vec globFVec, void *ctx){
+//    PetscFunctionBeginUser;
+//    PetscErrorCode ierr;
+//
+//    // Call the flux calculation
+////    ierr = DMPlexTSComputeRHSFunctionFVM(dm, time, locXVec, globFVec, ctx);CHKERRQ(ierr);
+//
+//    // Convert the dm to a plex
+//    DM plex;
+//    DMConvert(dm, DMPLEX, &plex);
+//
+//    // Extract the cell geometry, and the dm that holds the information
+//    Vec cellgeom;
+//    DM dmCell;
+//    const PetscScalar *cgeom;
+//    ierr = DMPlexGetGeometryFVM(plex, NULL, &cellgeom, NULL);CHKERRQ(ierr);
+//    ierr = VecGetDM(cellgeom, &dmCell);CHKERRQ(ierr);
+//    ierr = VecGetArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+//
+//    // Get the cell start and end for the fv cells
+//    PetscInt cStart, cEnd;
+//    ierr = DMPlexGetSimplexOrBoxCells(dmCell, 0, &cStart, &cEnd);CHKERRQ(ierr);
+//
+//    // create a local f vector
+////    Vec locFVec;
+//    PetscScalar  *locFArray;
+////    ierr = DMGetLocalVector(dm, &locFVec);CHKERRQ(ierr);
+//    ierr = VecZeroEntries(globFVec);CHKERRQ(ierr);
+//    ierr = VecGetArray(globFVec, &locFArray);CHKERRQ(ierr);
+//
+//    // get the current values
+//    const PetscScalar      *locXArray;
+//    ierr = VecGetArrayRead(locXVec, &locXArray);CHKERRQ(ierr);
+//
+//    PetscInt rank;
+//    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+//
+//    // March over each cell volume
+//    for (PetscInt c = cStart; c < cEnd; ++c) {
+//        PetscFVCellGeom       *cg;
+//        const PetscReal           *xc;
+//        PetscReal           *fc;
+//
+//        ierr = DMPlexPointLocalRead(dmCell, c, cgeom, &cg);CHKERRQ(ierr);
+////        ierr = DMPlexPointLocalFieldRead(plex, c, 0, locXArray, &xc);CHKERRQ(ierr);
+//        ierr = DMPlexPointGlobalFieldRef(plex, c, 0, locFArray, &fc);CHKERRQ(ierr);
+//
+//        if(fc) {  // must be real cell and not ghost
+//            printf("%d %f %f: %f\n", c, cg->centroid[0], cg->centroid[1], xc[3]);
+////            fc[0] = cg->centroid[0];
+//        }
+//    }
+//
+//    // restore the cell geometry
+//    ierr = VecRestoreArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+//    ierr = VecRestoreArrayRead(locXVec, &locXArray);CHKERRQ(ierr);
+//    ierr = VecRestoreArray(globFVec, &locFArray);CHKERRQ(ierr);
+//
+////    ierr = DMLocalToGlobalBegin(dm, locFVec, ADD_VALUES, globFVec);CHKERRQ(ierr);
+////    ierr = DMLocalToGlobalEnd(dm, locFVec, ADD_VALUES, globFVec);CHKERRQ(ierr);
+////    ierr = DMRestoreLocalVector(dm, &locFVec);CHKERRQ(ierr);
+//
+//    PetscFunctionReturn(0);
+//}
 
 int main(int argc, char **argv)
 {
+
+//    sleep(30000);
     PetscErrorCode ierr;
     // create the mesh
     // setup the ts
@@ -139,9 +207,12 @@ int main(int argc, char **argv)
     // hard code the problem setup
     PetscReal start[] = {-1, -1};
     PetscReal end[] = {1.0, 1};
-    PetscInt nx[] = {50, 50};
+    PetscInt nx[] = {10, 10};
     DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, DIM, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
+
+//    // Output the mesh
+//    ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
 
 // Setup the problem
     ProblemSetup problem;
@@ -182,6 +253,10 @@ int main(int argc, char **argv)
     ierr = CompressibleFlow_CompleteProblemSetup(flowData, ts);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
 
+    // Override the flow calc for now
+//    ierr = DMTSSetRHSFunctionLocal(flowData->dm, ComputeRHSWithSourceTerms, flowData);CHKERRQ(ierr);
+
+
     // Name the flow field
     ierr = PetscObjectSetName(((PetscObject)flowData->flowField), "Numerical Solution");
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
@@ -199,9 +274,12 @@ int main(int argc, char **argv)
     ierr    = DMProjectFunction(flowData->dm,0.0,func,ctxs,INSERT_ALL_VALUES,flowData->flowField);CHKERRQ(ierr);
 
     // Output the mesh
-    ierr = DMViewFromOptions(flowData->dm, NULL, "-dm_view");CHKERRQ(ierr);
+    DM plex;
+    DMConvert(flowData->dm, DMPLEX, &plex);
+    ierr = DMViewFromOptions(plex, NULL, "-dm_view");CHKERRQ(ierr);
 
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
+
 
     return PetscFinalize();
 

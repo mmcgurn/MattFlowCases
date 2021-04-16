@@ -403,15 +403,15 @@ int main(int argc, char **argv)
     ProblemSetup problem;
 
     // case 1 - Sod problem
-//    problem.initialConditions.rhoL=1.0;
-//    problem.initialConditions.uL=0.0;
-//    problem.initialConditions.pL=1.0;
-//    problem.initialConditions.rhoR=0.125;
-//    problem.initialConditions.uR=0.0;
-//    problem.initialConditions.pR=0.1;
-//    problem.initialConditions.maxTime = 0.25;
-//    problem.initialConditions.length = 1;
-//    problem.initialConditions.gamma = 1.4;
+    problem.initialConditions.rhoL=1.0;
+    problem.initialConditions.uL=0.0;
+    problem.initialConditions.pL=1.0;
+    problem.initialConditions.rhoR=0.125;
+    problem.initialConditions.uR=0.0;
+    problem.initialConditions.pR=0.1;
+    problem.initialConditions.maxTime = 0.25;
+    problem.initialConditions.length = 1;
+    problem.initialConditions.gamma = 1.4;
 
     // case 2
 //    problem.initialConditions.rhoL=1.0;
@@ -425,15 +425,15 @@ int main(int argc, char **argv)
 //    problem.initialConditions.gamma = 1.4;
 
     // case 5
-    problem.initialConditions.rhoL=5.99924;
-    problem.initialConditions.uL=19.5975;
-    problem.initialConditions.pL=460.894;
-    problem.initialConditions.rhoR=5.99242;
-    problem.initialConditions.uR=-6.19633;
-    problem.initialConditions.pR=46.0950;
-    problem.initialConditions.maxTime =  0.035;
-    problem.initialConditions.length = 1;
-    problem.initialConditions.gamma = 1.4;
+//    problem.initialConditions.rhoL=5.99924;
+//    problem.initialConditions.uL=19.5975;
+//    problem.initialConditions.pL=460.894;
+//    problem.initialConditions.rhoR=5.99242;
+//    problem.initialConditions.uR=-6.19633;
+//    problem.initialConditions.pR=46.0950;
+//    problem.initialConditions.maxTime =  0.035;
+//    problem.initialConditions.length = 1;
+//    problem.initialConditions.gamma = 1.4;
 
     // Compute the star state
     ierr = DetermineStarState(&problem.initialConditions, &problem.starState);CHKERRQ(ierr);
