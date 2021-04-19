@@ -54,3 +54,6 @@ target_link_libraries(ex17 PUBLIC ablateCore)
 
 add_executable(euler2DMMS euler2DMMS.c)
 target_link_libraries(euler2DMMS PUBLIC ablateCore)
+
+add_executable(fvOutput fvOutput.c)
+target_link_libraries(fvOutput PUBLIC ablateCore)
