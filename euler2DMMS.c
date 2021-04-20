@@ -41,6 +41,88 @@ typedef struct {
     FlowData flowData;
 } ProblemSetup;
 
+static PetscErrorCode EulerExact(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
+    PetscFunctionBeginUser;
+
+    Constants *constants = (Constants *)ctx;
+    PetscReal L = constants->L;
+    PetscReal gamma = constants->gamma;
+
+    PetscReal rhoO = constants->rho.phiO;
+    PetscReal rhoX = constants->rho.phiX;
+    PetscReal rhoY = constants->rho.phiY;
+    PetscReal rhoZ = constants->rho.phiZ;
+    PetscReal aRhoX = constants->rho.aPhiX;
+    PetscReal aRhoY = constants->rho.aPhiY;
+    PetscReal aRhoZ = constants->rho.aPhiZ;
+
+    PetscReal uO = constants->u.phiO;
+    PetscReal uX = constants->u.phiX;
+    PetscReal uY = constants->u.phiY;
+    PetscReal uZ = constants->u.phiZ;
+    PetscReal aUX = constants->u.aPhiX;
+    PetscReal aUY = constants->u.aPhiY;
+    PetscReal aUZ = constants->u.aPhiZ;
+
+    PetscReal vO = constants->v.phiO;
+    PetscReal vX = constants->v.phiX;
+    PetscReal vY = constants->v.phiY;
+    PetscReal vZ = constants->v.phiZ;
+    PetscReal aVX = constants->v.aPhiX;
+    PetscReal aVY = constants->v.aPhiY;
+    PetscReal aVZ = constants->v.aPhiZ;
+
+    PetscReal wO = constants->w.phiO;
+    PetscReal wX = constants->w.phiX;
+    PetscReal wY = constants->w.phiY;
+    PetscReal wZ = constants->w.phiZ;
+    PetscReal aWX = constants->w.aPhiX;
+    PetscReal aWY = constants->w.aPhiY;
+    PetscReal aWZ = constants->w.aPhiZ;
+
+    PetscReal pO = constants->p.phiO;
+    PetscReal pX = constants->p.phiX;
+    PetscReal pY = constants->p.phiY;
+    PetscReal pZ = constants->p.phiZ;
+    PetscReal aPX = constants->p.aPhiX;
+    PetscReal aPY = constants->p.aPhiY;
+    PetscReal aPZ = constants->p.aPhiZ;
+
+    PetscReal x = xyz[0];
+    PetscReal y = xyz[1];
+    PetscReal z = dim > 2? xyz[2] : 0.0;
+
+    u[RHO] = rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L);
+    u[RHOE] = (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                    (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.);
+
+    u[RHOU + 0] = (uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*
+           (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L));
+    u[RHOU + 1] = (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*
+           (vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L));
+
+    if(dim > 2){
+        u[RHOU + 2] = (wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*
+               (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L));
+    }
+
+    PetscFunctionReturn(0);
+}
+
+
+static PetscErrorCode EulerExactTimeDerivative(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
+    PetscFunctionBeginUser;
+    u[RHO] = 0.0;
+    u[RHOE] = 0.0;
+    u[RHOU + 0] = 0.0;
+    u[RHOU + 1] = 0.0;
+    if(dim > 2) {
+        u[RHOU + 2] = 0.0;
+    }
+
+    PetscFunctionReturn(0);
+}
+
 static PetscErrorCode RhoExact(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
     Constants *constants = (Constants *)ctx;
     PetscReal rhoO = constants->rho.phiO;
@@ -200,17 +282,35 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     ierr = PetscPrintf(PetscObjectComm((PetscObject)dm), "TS at %f\n", time);CHKERRQ(ierr);
 
     // Compute the error
-    void            *exactCtxs[3];
-    PetscErrorCode (*exactFuncs[3])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
+    void            *exactCtxs[1];
+    PetscErrorCode (*exactFuncs[1])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
     PetscDS          ds;
     ierr = DMGetDS(dm, &ds);CHKERRQ(ierr);
-    for (PetscInt f = 0; f < 3; ++f) {ierr = PetscDSGetExactSolution(ds, f, &exactFuncs[f], &exactCtxs[f]);CHKERRQ(ierr);}
+
+    // Get the exact solution
+    ierr = PetscDSGetExactSolution(ds, 0, &exactFuncs[0], &exactCtxs[0]);CHKERRQ(ierr);
+
+    // Create an vector to hold the exact solution
+    Vec exactVec;
+    ierr = VecDuplicate(u, &exactVec);CHKERRQ(ierr);
+    ierr = DMProjectFunction(dm,time,exactFuncs,exactCtxs,INSERT_ALL_VALUES,exactVec);CHKERRQ(ierr);
+
+//    VecView(u, PETSC_VIEWER_STDOUT_WORLD);
+
+    // For each component, compute the l2 norms
+    ierr = VecAXPY(exactVec, -1.0, u);CHKERRQ(ierr);
+
+    PetscReal ferrors[4];
+    ierr = VecSetBlockSize(exactVec, 4);CHKERRQ(ierr);
 
     // Compute the L2 Difference
-    PetscReal        ferrors[3];
-    ierr = DMComputeL2FieldDiff(dm, time, exactFuncs, exactCtxs, u, ferrors);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "Timestep: %04d time = %-8.4g \t L_2 Error: [%2.3g, %2.3g, %2.3g]\n", (int) step, (double) time, (double) ferrors[0], (double) ferrors[1], (double) ferrors[2]);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "Timestep: %04d time = %-8.4g \t\n", (int) step, (double) time);CHKERRQ(ierr);
+    ierr =  VecStrideNormAll(exactVec, NORM_2,ferrors);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_2 Error: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double) ferrors[0], (double) ferrors[1], (double) ferrors[2], (double) ferrors[3]);CHKERRQ(ierr);
+    ierr =  VecStrideNormAll(exactVec, NORM_INFINITY,ferrors);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_Inf Error: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double) ferrors[0], (double) ferrors[1], (double) ferrors[2], (double) ferrors[3]);CHKERRQ(ierr);
 
+    ierr = VecDestroy(&exactVec);CHKERRQ(ierr);
 
     PetscFunctionReturn(0);
 }
@@ -692,7 +792,7 @@ int main(int argc, char **argv)
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {constants.L, constants.L};
-    PetscInt nx[] = {129, 129};
+    PetscInt nx[] = {5, 5};
     DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
@@ -745,56 +845,56 @@ int main(int argc, char **argv)
     ierr = TSSetMaxTime(ts, 0.01);CHKERRQ(ierr);
 
     // set the initial conditions
-    PetscErrorCode     (*func[3]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {RhoExact, RhoEExact, RhoUExact};
-    void* ctxs[3] ={&constants, &constants, &constants};
+    PetscErrorCode     (*func[2]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {EulerExact};
+    void* ctxs[1] ={&constants};
     ierr    = DMProjectFunction(flowData->dm,0.0,func,ctxs,INSERT_ALL_VALUES,flowData->flowField);CHKERRQ(ierr);
 
     // for the mms, add the exact solution
-    ierr = PetscDSSetExactSolution(prob, RHO, RhoExact, &constants);CHKERRQ(ierr);
-    ierr = PetscDSSetExactSolution(prob, RHOE, RhoEExact, &constants);CHKERRQ(ierr);
-    ierr = PetscDSSetExactSolution(prob, RHOU, RhoUExact, &constants);CHKERRQ(ierr);
-    ierr = PetscDSSetExactSolutionTimeDerivative(prob, RHO, RhoExactTimeDerivative, &constants);CHKERRQ(ierr);
-    ierr = PetscDSSetExactSolutionTimeDerivative(prob, RHOE, RhoEExactTimeDerivative, &constants);CHKERRQ(ierr);
-    ierr = PetscDSSetExactSolutionTimeDerivative(prob, RHOU, RhoUExactTimeDerivative, &constants);CHKERRQ(ierr);
+    ierr = PetscDSSetExactSolution(prob, 0, EulerExact, &constants);CHKERRQ(ierr);
+//    ierr = PetscDSSetExactSolution(prob, RHOE, RhoEExact, &constants);CHKERRQ(ierr);
+//    ierr = PetscDSSetExactSolution(prob, RHOU, RhoUExact, &constants);CHKERRQ(ierr);
+    ierr = PetscDSSetExactSolutionTimeDerivative(prob, 0, EulerExactTimeDerivative, &constants);CHKERRQ(ierr);
+//    ierr = PetscDSSetExactSolutionTimeDerivative(prob, RHOE, RhoEExactTimeDerivative, &constants);CHKERRQ(ierr);
+//    ierr = PetscDSSetExactSolutionTimeDerivative(prob, RHOU, RhoUExactTimeDerivative, &constants);CHKERRQ(ierr);
 
     // Output the mesh
     PetscReal time = 0.0;
-    {
-        Vec sol;
-        VecDuplicate(flowData->flowField, &sol);
-        VecCopy(flowData->flowField, sol);
+//    {
+//        Vec sol;
+//        VecDuplicate(flowData->flowField, &sol);
+//        VecCopy(flowData->flowField, sol);
+//
+//        SNES snes;
+//        ierr = TSGetSNES(ts, &snes);CHKERRQ(ierr);
+//        ierr = DMSNESCheckDiscretization(snes, flowData->dm, time, sol, -1.0, NULL);CHKERRQ(ierr);
+//
+//        Vec u_t;
+//        ierr = DMGetGlobalVector(flowData->dm, &u_t);CHKERRQ(ierr);
+//        ierr = DMTSCheckResidual(ts, flowData->dm, time, sol, u_t, -1.0, NULL);CHKERRQ(ierr);
+//        ierr = DMRestoreGlobalVector(flowData->dm, &u_t);CHKERRQ(ierr);
+//
+//        VecDestroy(&sol);
+//    }
 
-        SNES snes;
-        ierr = TSGetSNES(ts, &snes);CHKERRQ(ierr);
-        ierr = DMSNESCheckDiscretization(snes, flowData->dm, time, sol, -1.0, NULL);CHKERRQ(ierr);
-
-        Vec u_t;
-        ierr = DMGetGlobalVector(flowData->dm, &u_t);CHKERRQ(ierr);
-        ierr = DMTSCheckResidual(ts, flowData->dm, time, sol, u_t, -1.0, NULL);CHKERRQ(ierr);
-        ierr = DMRestoreGlobalVector(flowData->dm, &u_t);CHKERRQ(ierr);
-
-        VecDestroy(&sol);
-    }
-
-    TSSetMaxSteps(ts, 1);
+    TSSetMaxSteps(ts, 3);
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
 
-    {
-        Vec sol;
-        VecDuplicate(flowData->flowField, &sol);
-        VecCopy(flowData->flowField, sol);
-
-        SNES snes;
-        ierr = TSGetSNES(ts, &snes);CHKERRQ(ierr);
-        ierr = DMSNESCheckDiscretization(snes, flowData->dm, time, sol, -1.0, NULL);CHKERRQ(ierr);
-
-        Vec u_t;
-        ierr = DMGetGlobalVector(flowData->dm, &u_t);CHKERRQ(ierr);
-        ierr = DMTSCheckResidual(ts, flowData->dm, time, sol, u_t, -1.0, NULL);CHKERRQ(ierr);
-        ierr = DMRestoreGlobalVector(flowData->dm, &u_t);CHKERRQ(ierr);
-
-        VecDestroy(&sol);
-    }
+//    {
+//        Vec sol;
+//        VecDuplicate(flowData->flowField, &sol);
+//        VecCopy(flowData->flowField, sol);
+//
+//        SNES snes;
+//        ierr = TSGetSNES(ts, &snes);CHKERRQ(ierr);
+//        ierr = DMSNESCheckDiscretization(snes, flowData->dm, time, sol, -1.0, NULL);CHKERRQ(ierr);
+//
+//        Vec u_t;
+//        ierr = DMGetGlobalVector(flowData->dm, &u_t);CHKERRQ(ierr);
+//        ierr = DMTSCheckResidual(ts, flowData->dm, time, sol, u_t, -1.0, NULL);CHKERRQ(ierr);
+//        ierr = DMRestoreGlobalVector(flowData->dm, &u_t);CHKERRQ(ierr);
+//
+//        VecDestroy(&sol);
+//    }
 
     return PetscFinalize();
 
