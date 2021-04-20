@@ -183,13 +183,8 @@ static PetscErrorCode RhoEExact(PetscInt dim, PetscReal time, const PetscReal xy
     PetscReal y = xyz[1];
     PetscReal z = dim > 2? xyz[2] : 0.0;
 
-    u[0] = (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*
-           ((pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) + pX*Sin((aPX*Pi*x)/L))/
-            ((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                            rhoX*Sin((aRhoX*Pi*x)/L))) + (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                                                uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                                                                                wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                                                vZ*Sin((aVZ*Pi*z)/L),2))/2.);
+    u[0] = (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                    (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.);
     PetscFunctionReturn(0);
 }
 
@@ -215,6 +210,7 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     PetscReal        ferrors[3];
     ierr = DMComputeL2FieldDiff(dm, time, exactFuncs, exactCtxs, u, ferrors);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "Timestep: %04d time = %-8.4g \t L_2 Error: [%2.3g, %2.3g, %2.3g]\n", (int) step, (double) time, (double) ferrors[0], (double) ferrors[1], (double) ferrors[2]);CHKERRQ(ierr);
+
 
     PetscFunctionReturn(0);
 }
@@ -452,100 +448,35 @@ static PetscErrorCode SourceRhoE(PetscInt dim, PetscReal time, const PetscReal x
     PetscReal y = xyz[1];
     PetscReal z = dim > 2? xyz[2] : 0.0;
 
-    u[0] = -((aPX*Pi*pX*Sin((aPX*Pi*x)/L)*(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                           uX*Sin((aUX*Pi*x)/L)))/L) + (aUX*Pi*uX*Cos((aUX*Pi*x)/L)*
-                                                                        (pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L)))/L +
-           (aVY*Pi*vY*Cos((aVY*Pi*y)/L)*(pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) +
-                                         pY*Sin((aPY*Pi*y)/L)))/L - (aPZ*Pi*pZ*
-                                                                     (wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*Sin((aPZ*Pi*z)/L))/L +
-           (aPY*Pi*pY*Cos((aPY*Pi*y)/L)*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                         vZ*Sin((aVZ*Pi*z)/L)))/L + (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) +
-                                                                     rhoZ*Sin((aRhoZ*Pi*z)/L))*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                vZ*Sin((aVZ*Pi*z)/L))*(-((aPY*Pi*pY*Sin((aPY*Pi*y)/L))/
-                                                                                                                         ((-1. + gamma)*L*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                                                                                                                           rhoX*Sin((aRhoX*Pi*x)/L)))) +
-                                                                                                                       (aRhoY*Pi*rhoY*(pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) + pX*Sin((aPX*Pi*x)/L))*
-                                                                                                                        Sin((aRhoY*Pi*y)/L))/
-                                                                                                                       ((-1. + gamma)*L*Power(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                                                                                                                              rhoX*Sin((aRhoX*Pi*x)/L),2)) + ((-2*aUY*Pi*uY*
-                                                                                                                                                                               (uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*Sin((aUY*Pi*y)/L))/
-                                                                                                                                                                              L + (2*aWY*Pi*wY*Cos((aWY*Pi*y)/L)*
-                                                                                                                                                                                   (wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L)))/L +
-                                                                                                                                                                              (2*aVY*Pi*vY*Cos((aVY*Pi*y)/L)*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                                                                                                                              vZ*Sin((aVZ*Pi*z)/L)))/L)/2.) +
-           (uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*
-           (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*
-           (-((aRhoX*Pi*rhoX*Cos((aRhoX*Pi*x)/L)*(pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) +
-                                                  pX*Sin((aPX*Pi*x)/L)))/
-              ((-1. + gamma)*L*Power(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                     rhoX*Sin((aRhoX*Pi*x)/L),2))) +
-            (aPX*Pi*pX*Cos((aPX*Pi*x)/L))/
-            ((-1. + gamma)*L*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                              rhoX*Sin((aRhoX*Pi*x)/L))) + ((2*aUX*Pi*uX*Cos((aUX*Pi*x)/L)*
-                                                             (uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L)))/L +
-                                                            (2*aWX*Pi*wX*Cos((aWX*Pi*x)/L)*(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                                                                            wY*Sin((aWY*Pi*y)/L)))/L - (2*aVX*Pi*vX*Sin((aVX*Pi*x)/L)*
-                                                                                                                        (vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L)))/L)/2.) +
-           (aRhoX*Pi*rhoX*Cos((aRhoX*Pi*x)/L)*(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                               uX*Sin((aUX*Pi*x)/L))*((pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) + pX*Sin((aPX*Pi*x)/L))/
-                                                                      ((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                                                                      rhoX*Sin((aRhoX*Pi*x)/L))) + (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                                                                                                          uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                                                                                                                                          wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                                                                                                          vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L +
-           (aRhoZ*Pi*rhoZ*Cos((aRhoZ*Pi*z)/L)*(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                               wY*Sin((aWY*Pi*y)/L))*((pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) + pX*Sin((aPX*Pi*x)/L))/
-                                                                      ((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                                                                      rhoX*Sin((aRhoX*Pi*x)/L))) + (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                                                                                                          uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                                                                                                                                          wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                                                                                                          vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L +
-           (aUX*Pi*uX*Cos((aUX*Pi*x)/L)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) +
-                                         rhoZ*Sin((aRhoZ*Pi*z)/L))*((pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) +
-                                                                     pX*Sin((aPX*Pi*x)/L))/
-                                                                    ((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                                                                    rhoX*Sin((aRhoX*Pi*x)/L))) + (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                                                                                                        uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                                                                                                                                        wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                                                                                                        vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L +
-           (aVY*Pi*vY*Cos((aVY*Pi*y)/L)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) +
-                                         rhoZ*Sin((aRhoZ*Pi*z)/L))*((pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) +
-                                                                     pX*Sin((aPX*Pi*x)/L))/
-                                                                    ((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                                                                    rhoX*Sin((aRhoX*Pi*x)/L))) + (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                                                                                                        uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                                                                                                                                        wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                                                                                                        vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L -
-           (aRhoY*Pi*rhoY*Sin((aRhoY*Pi*y)/L)*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                               vZ*Sin((aVZ*Pi*z)/L))*((pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) + pX*Sin((aPX*Pi*x)/L))/
-                                                                      ((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                                                                      rhoX*Sin((aRhoX*Pi*x)/L))) + (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                                                                                                          uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                                                                                                                                          wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                                                                                                          vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L -
-           (aWZ*Pi*wZ*(pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))*
-            Sin((aWZ*Pi*z)/L))/L - (aWZ*Pi*wZ*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) +
-                                               rhoZ*Sin((aRhoZ*Pi*z)/L))*((pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) +
-                                                                           pX*Sin((aPX*Pi*x)/L))/
-                                                                          ((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                                                                          rhoX*Sin((aRhoX*Pi*x)/L))) + (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) +
-                                                                                                                              uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) +
-                                                                                                                                                              wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) +
-                                                                                                                                                                                              vZ*Sin((aVZ*Pi*z)/L),2))/2.)*Sin((aWZ*Pi*z)/L))/L +
-           (wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*
-           (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*
-           (-((aPZ*Pi*pZ*Sin((aPZ*Pi*z)/L))/
-              ((-1. + gamma)*L*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                rhoX*Sin((aRhoX*Pi*x)/L)))) +
-            (aRhoZ*Pi*rhoZ*(pO + pY*Cos((aPY*Pi*y)/L) + pZ*Cos((aPZ*Pi*z)/L) + pX*Sin((aPX*Pi*x)/L))*
-             Sin((aRhoZ*Pi*z)/L))/
-            ((-1. + gamma)*L*Power(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoZ*Cos((aRhoZ*Pi*z)/L) +
-                                   rhoX*Sin((aRhoX*Pi*x)/L),2)) + ((-2*aUZ*Pi*uZ*
-                                                                    (uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*Sin((aUZ*Pi*z)/L))/
-                                                                   L + (2*aVZ*Pi*vZ*Cos((aVZ*Pi*z)/L)*
-                                                                        (vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L)))/L -
-                                                                   (2*aWZ*Pi*wZ*(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*
-                                                                    Sin((aWZ*Pi*z)/L))/L)/2.);
+    u[0] = -((aPX*Pi*pX*Sin((aPX*Pi*x)/L)*(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L)))/L) + (aUX*Pi*uX*Cos((aUX*Pi*x)/L)*(pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L)))/L +
+           (aVY*Pi*vY*Cos((aVY*Pi*y)/L)*(pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L)))/L - (aPZ*Pi*pZ*(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*Sin((aPZ*Pi*z)/L))/L +
+           (aPY*Pi*pY*Cos((aPY*Pi*y)/L)*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L)))/L + (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L))*
+                                                                                                                       ((aRhoY*Pi*rhoY*(pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))*Sin((aRhoY*Pi*y)/L))/((-1. + gamma)*L*Power(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L),2)) +
+                                                                                                                        (aPY*Pi*pY*Cos((aPY*Pi*y)/L))/((-1. + gamma)*L*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                                        ((-2*aUY*Pi*uY*(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*Sin((aUY*Pi*y)/L))/L + (2*aWY*Pi*wY*Cos((aWY*Pi*y)/L)*(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L)))/L +
+                                                                                                                         (2*aVY*Pi*vY*Cos((aVY*Pi*y)/L)*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L)))/L)/2.) + (uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*
+                                                                                                                                                                                                                                            (-((aRhoX*Pi*rhoX*Cos((aRhoX*Pi*x)/L)*(pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L)))/((-1. + gamma)*L*Power(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L),2))) -
+                                                                                                                                                                                                                                             (aPX*Pi*pX*Sin((aPX*Pi*x)/L))/((-1. + gamma)*L*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                                                                                                                                                             ((2*aUX*Pi*uX*Cos((aUX*Pi*x)/L)*(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L)))/L + (2*aWX*Pi*wX*Cos((aWX*Pi*x)/L)*(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L)))/L -
+                                                                                                                                                                                                                                              (2*aVX*Pi*vX*Sin((aVX*Pi*x)/L)*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L)))/L)/2.) + (aRhoX*Pi*rhoX*Cos((aRhoX*Pi*x)/L)*(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*
+                                                                                                                                                                                                                                                                                                                                                                  ((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                                                                                                                                                                                                                                                                                   (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L +
+           (aRhoZ*Pi*rhoZ*Cos((aRhoZ*Pi*z)/L)*(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                                         (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L +
+           (aUX*Pi*uX*Cos((aUX*Pi*x)/L)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                                                 (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L +
+           (aVY*Pi*vY*Cos((aVY*Pi*y)/L)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                                                 (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L -
+           (aRhoY*Pi*rhoY*Sin((aRhoY*Pi*y)/L)*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L))*((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                                         (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.))/L -
+           (aWZ*Pi*wZ*(pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))*Sin((aWZ*Pi*z)/L))/L - (aWZ*Pi*wZ*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*
+                                                                                                                        ((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+                                                                                                                         (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.)*Sin((aWZ*Pi*z)/L))/L +
+           (wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*
+           (-((aRhoZ*Pi*rhoZ*Cos((aRhoZ*Pi*z)/L)*(pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L)))/((-1. + gamma)*L*Power(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L),2))) -
+            (aPZ*Pi*pZ*Sin((aPZ*Pi*z)/L))/((-1. + gamma)*L*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
+            ((-2*aUZ*Pi*uZ*(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*Sin((aUZ*Pi*z)/L))/L + (2*aVZ*Pi*vZ*Cos((aVZ*Pi*z)/L)*(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L)))/L -
+             (2*aWZ*Pi*wZ*(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*Sin((aWZ*Pi*z)/L))/L)/2.);
     PetscFunctionReturn(0);
 }
 
@@ -611,8 +542,8 @@ static PetscErrorCode ComputeRHSWithSourceTerms(DM dm, PetscReal time, Vec locXV
 
         if(fc) {  // must be real cell and not ghost
             SourceRho(setup->constants.dim, time, cg->centroid, 0, fc + RHO, &setup->constants);
-//            SourceRhoE(setup->constants.dim, time, cg->centroid, 0, fc + RHOE, &setup->constants);
-//            SourceRhoU(setup->constants.dim, time, cg->centroid, 0, fc + RHOU, &setup->constants);
+            SourceRhoE(setup->constants.dim, time, cg->centroid, 0, fc + RHOE, &setup->constants);
+            SourceRhoU(setup->constants.dim, time, cg->centroid, 0, fc + RHOU, &setup->constants);
         }
     }
 
@@ -624,6 +555,34 @@ static PetscErrorCode ComputeRHSWithSourceTerms(DM dm, PetscReal time, Vec locXV
     ierr = DMLocalToGlobalBegin(dm, locFVec, ADD_VALUES, globFVec);CHKERRQ(ierr);
     ierr = DMLocalToGlobalEnd(dm, locFVec, ADD_VALUES, globFVec);CHKERRQ(ierr);
     ierr = DMRestoreLocalVector(dm, &locFVec);CHKERRQ(ierr);
+
+    {// check rhs,
+        // temp read current residual
+        const PetscScalar *currentFArray;
+        ierr = VecGetArrayRead(globFVec, &currentFArray);CHKERRQ(ierr);
+        ierr = VecGetArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+
+        // March over each cell volume
+        for (PetscInt c = cStart; c < cEnd; ++c) {
+            PetscFVCellGeom       *cg;
+            const PetscReal           *fcCurrent;
+
+            ierr = DMPlexPointLocalRead(dmCell, c, cgeom, &cg);CHKERRQ(ierr);
+            ierr = DMPlexPointGlobalFieldRead(plex, c, 0, currentFArray, &fcCurrent);CHKERRQ(ierr);
+
+            if(fcCurrent) {  // must be real cell and not ghost
+                if(PetscAbsReal(cg->centroid[0] - .5 ) < 1E-8 && PetscAbsReal(cg->centroid[1] - .5 )  < 1E-8){
+                    printf("Residual(%f, %f): %f %f %f %f\n", cg->centroid[0], cg->centroid[1], fcCurrent[0], fcCurrent[1], fcCurrent[2], fcCurrent[3]);
+                }
+            }
+        }
+
+        // temp return current residual
+        ierr = VecRestoreArrayRead(globFVec, &currentFArray);CHKERRQ(ierr);
+        ierr = VecRestoreArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+    }
+
+
 
     PetscFunctionReturn(0);
 }
@@ -733,7 +692,7 @@ int main(int argc, char **argv)
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {constants.L, constants.L};
-    PetscInt nx[] = {1, 1};
+    PetscInt nx[] = {129, 129};
     DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
@@ -817,13 +776,8 @@ int main(int argc, char **argv)
         VecDestroy(&sol);
     }
 
-    TSSetMaxSteps(ts, 100);
+    TSSetMaxSteps(ts, 1);
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
-
-    double rho = 0.0;
-    double loc[2] = {.25, .25};
-    RhoExact(constants.dim, time, loc, 0, &rho, &constants);
-    printf("rho: %f\n", rho);
 
     {
         Vec sol;
