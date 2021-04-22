@@ -33,6 +33,11 @@ endif()
 # Set the project details
 project(ablateClientTemplate VERSION 0.0.1)
 
+# If there is a -lm, let's use it
+if(MATH_LIBRARY)
+    target_link_libraries(ablateCore PUBLIC ${MATH_LIBRARY})
+endif()
+
 # Set the c/c++ Standards
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
