@@ -123,153 +123,6 @@ static PetscErrorCode EulerExactTimeDerivative(PetscInt dim, PetscReal time, con
     PetscFunctionReturn(0);
 }
 
-static PetscErrorCode RhoExact(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
-    Constants *constants = (Constants *)ctx;
-    PetscReal rhoO = constants->rho.phiO;
-    PetscReal rhoX = constants->rho.phiX;
-    PetscReal rhoY = constants->rho.phiY;
-    PetscReal rhoZ = constants->rho.phiZ;
-    PetscReal aRhoX = constants->rho.aPhiX;
-    PetscReal aRhoY = constants->rho.aPhiY;
-    PetscReal aRhoZ = constants->rho.aPhiZ;
-    PetscReal L = constants->L;
-
-    PetscReal x = xyz[0];
-    PetscReal y = xyz[1];
-    PetscReal z = dim > 2? xyz[2] : 0.0;
-
-    u[0] = rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L);
-    PetscFunctionReturn(0);
-}
-
-static PetscErrorCode RhoExactTimeDerivative(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
-    PetscFunctionBeginUser;
-    u[0] = 0.0;
-    PetscFunctionReturn(0);
-}
-static PetscErrorCode RhoUExactTimeDerivative(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
-    PetscFunctionBeginUser;
-    for(PetscInt d =0; d < dim; d++){
-        u[d] = 0.0;
-    }
-    PetscFunctionReturn(0);
-}
-static PetscErrorCode RhoEExactTimeDerivative(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
-    PetscFunctionBeginUser;
-    u[0] = 0.0;
-    PetscFunctionReturn(0);
-}
-
-static PetscErrorCode RhoUExact(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
-    PetscFunctionBeginUser;
-
-    Constants *constants = (Constants *)ctx;
-    PetscReal L = constants->L;
-
-    PetscReal rhoO = constants->rho.phiO;
-    PetscReal rhoX = constants->rho.phiX;
-    PetscReal rhoY = constants->rho.phiY;
-    PetscReal rhoZ = constants->rho.phiZ;
-    PetscReal aRhoX = constants->rho.aPhiX;
-    PetscReal aRhoY = constants->rho.aPhiY;
-    PetscReal aRhoZ = constants->rho.aPhiZ;
-
-    PetscReal uO = constants->u.phiO;
-    PetscReal uX = constants->u.phiX;
-    PetscReal uY = constants->u.phiY;
-    PetscReal uZ = constants->u.phiZ;
-    PetscReal aUX = constants->u.aPhiX;
-    PetscReal aUY = constants->u.aPhiY;
-    PetscReal aUZ = constants->u.aPhiZ;
-
-    PetscReal vO = constants->v.phiO;
-    PetscReal vX = constants->v.phiX;
-    PetscReal vY = constants->v.phiY;
-    PetscReal vZ = constants->v.phiZ;
-    PetscReal aVX = constants->v.aPhiX;
-    PetscReal aVY = constants->v.aPhiY;
-    PetscReal aVZ = constants->v.aPhiZ;
-
-    PetscReal wO = constants->w.phiO;
-    PetscReal wX = constants->w.phiX;
-    PetscReal wY = constants->w.phiY;
-    PetscReal wZ = constants->w.phiZ;
-    PetscReal aWX = constants->w.aPhiX;
-    PetscReal aWY = constants->w.aPhiY;
-    PetscReal aWZ = constants->w.aPhiZ;
-
-    PetscReal x = xyz[0];
-    PetscReal y = xyz[1];
-    PetscReal z = dim > 2? xyz[2] : 0.0;
-
-    u[0] = (uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L))*
-           (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L));
-    u[1] = (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*
-           (vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L));
-
-    if(dim > 2){
-        u[2] = (wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L))*
-               (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L));
-    }
-    PetscFunctionReturn(0);
-}
-
-static PetscErrorCode RhoEExact(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
-    PetscFunctionBeginUser;
-
-    Constants *constants = (Constants *)ctx;
-    PetscReal L = constants->L;
-    PetscReal gamma = constants->gamma;
-
-    PetscReal rhoO = constants->rho.phiO;
-    PetscReal rhoX = constants->rho.phiX;
-    PetscReal rhoY = constants->rho.phiY;
-    PetscReal rhoZ = constants->rho.phiZ;
-    PetscReal aRhoX = constants->rho.aPhiX;
-    PetscReal aRhoY = constants->rho.aPhiY;
-    PetscReal aRhoZ = constants->rho.aPhiZ;
-
-    PetscReal uO = constants->u.phiO;
-    PetscReal uX = constants->u.phiX;
-    PetscReal uY = constants->u.phiY;
-    PetscReal uZ = constants->u.phiZ;
-    PetscReal aUX = constants->u.aPhiX;
-    PetscReal aUY = constants->u.aPhiY;
-    PetscReal aUZ = constants->u.aPhiZ;
-
-    PetscReal vO = constants->v.phiO;
-    PetscReal vX = constants->v.phiX;
-    PetscReal vY = constants->v.phiY;
-    PetscReal vZ = constants->v.phiZ;
-    PetscReal aVX = constants->v.aPhiX;
-    PetscReal aVY = constants->v.aPhiY;
-    PetscReal aVZ = constants->v.aPhiZ;
-
-    PetscReal wO = constants->w.phiO;
-    PetscReal wX = constants->w.phiX;
-    PetscReal wY = constants->w.phiY;
-    PetscReal wZ = constants->w.phiZ;
-    PetscReal aWX = constants->w.aPhiX;
-    PetscReal aWY = constants->w.aPhiY;
-    PetscReal aWZ = constants->w.aPhiZ;
-
-    PetscReal pO = constants->p.phiO;
-    PetscReal pX = constants->p.phiX;
-    PetscReal pY = constants->p.phiY;
-    PetscReal pZ = constants->p.phiZ;
-    PetscReal aPX = constants->p.aPhiX;
-    PetscReal aPY = constants->p.aPhiY;
-    PetscReal aPZ = constants->p.aPhiZ;
-
-    PetscReal x = xyz[0];
-    PetscReal y = xyz[1];
-    PetscReal z = dim > 2? xyz[2] : 0.0;
-
-    u[0] = (rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))*((pO + pX*Cos((aPX*Pi*x)/L) + pZ*Cos((aPZ*Pi*z)/L) + pY*Sin((aPY*Pi*y)/L))/((-1. + gamma)*(rhoO + rhoY*Cos((aRhoY*Pi*y)/L) + rhoX*Sin((aRhoX*Pi*x)/L) + rhoZ*Sin((aRhoZ*Pi*z)/L))) +
-                                                                                                    (Power(uO + uY*Cos((aUY*Pi*y)/L) + uZ*Cos((aUZ*Pi*z)/L) + uX*Sin((aUX*Pi*x)/L),2) + Power(wO + wZ*Cos((aWZ*Pi*z)/L) + wX*Sin((aWX*Pi*x)/L) + wY*Sin((aWY*Pi*y)/L),2) + Power(vO + vX*Cos((aVX*Pi*x)/L) + vY*Sin((aVY*Pi*y)/L) + vZ*Sin((aVZ*Pi*z)/L),2))/2.);
-    PetscFunctionReturn(0);
-}
-
 static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, void *ctx) {
     PetscFunctionBeginUser;
     PetscErrorCode     ierr;
@@ -294,8 +147,6 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     Vec exactVec;
     ierr = VecDuplicate(u, &exactVec);CHKERRQ(ierr);
     ierr = DMProjectFunction(dm,time,exactFuncs,exactCtxs,INSERT_ALL_VALUES,exactVec);CHKERRQ(ierr);
-
-//    VecView(u, PETSC_VIEWER_STDOUT_WORLD);
 
     // For each component, compute the l2 norms
     ierr = VecAXPY(exactVec, -1.0, u);CHKERRQ(ierr);
@@ -585,10 +436,14 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
     PetscFunctionBeginUser;
     Constants *constants = (Constants *)ctx;
 
-    RhoExact(constants->dim, time, c, 0, a_xG + RHO, ctx);
-    RhoEExact(constants->dim, time, c, 0, a_xG + RHOE, ctx);
-    RhoUExact(constants->dim, time, c, 0, a_xG + RHOU, ctx);
+    // Offset the calc assuming the cells are square
+    PetscReal x[3];
 
+    for(PetscInt i =0; i < constants->dim; i++){
+        x[i] = c[i] + n[i]*0.5;
+    }
+
+    EulerExact(constants->dim, time, x, 0, a_xG, ctx);
     PetscFunctionReturn(0);
 }
 
@@ -656,68 +511,115 @@ static PetscErrorCode ComputeRHSWithSourceTerms(DM dm, PetscReal time, Vec locXV
     ierr = DMLocalToGlobalEnd(dm, locFVec, ADD_VALUES, globFVec);CHKERRQ(ierr);
     ierr = DMRestoreLocalVector(dm, &locFVec);CHKERRQ(ierr);
 
-    {// check rhs,
+//    {// check rhs,
+//        // temp read current residual
+//        const PetscScalar *currentFArray;
+//        ierr = VecGetArrayRead(globFVec, &currentFArray);CHKERRQ(ierr);
+//        ierr = VecGetArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+//
+//        // March over each cell volume
+//        for (PetscInt c = cStart; c < cEnd; ++c) {
+//            PetscFVCellGeom       *cg;
+//            const PetscReal           *fcCurrent;
+//
+//            ierr = DMPlexPointLocalRead(dmCell, c, cgeom, &cg);CHKERRQ(ierr);
+//            ierr = DMPlexPointGlobalFieldRead(plex, c, 0, currentFArray, &fcCurrent);CHKERRQ(ierr);
+//
+//            if(fcCurrent) {  // must be real cell and not ghost
+//                if(PetscAbsReal(cg->centroid[0] - .5 ) < 1E-8 && PetscAbsReal(cg->centroid[1] - .5 )  < 1E-8){
+//                    printf("Residual(%f, %f): %f %f %f %f\n", cg->centroid[0], cg->centroid[1], fcCurrent[0], fcCurrent[1], fcCurrent[2], fcCurrent[3]);
+//                }
+//            }
+//        }
+//
+//        // temp return current residual
+//        ierr = VecRestoreArrayRead(globFVec, &currentFArray);CHKERRQ(ierr);
+//        ierr = VecRestoreArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+//    }
+
+    PetscFunctionReturn(0);
+}
+
+PetscErrorCode ComputeRHS(TS ts, DM dm, PetscReal t, Vec u, PetscInt blockSize, PetscReal residualNorm2[], PetscReal residualNormInf[], PetscReal start[], PetscReal end[])
+{
+    MPI_Comm       comm;
+    Vec            r;
+    PetscErrorCode ierr;
+
+    PetscFunctionBeginUser;
+    Vec sol;
+    ierr = VecDuplicate(u, &sol);CHKERRQ(ierr);
+    ierr = VecCopy(u, sol);CHKERRQ(ierr);
+
+    ierr = PetscObjectGetComm((PetscObject) ts, &comm);CHKERRQ(ierr);
+    ierr = DMComputeExactSolution(dm, t, sol, NULL);CHKERRQ(ierr);
+    ierr = VecDuplicate(u, &r);CHKERRQ(ierr);
+    ierr = TSComputeRHSFunction(ts, t, sol, r);CHKERRQ(ierr);
+
+    // zero out the norms
+    for(PetscInt b =0; b < blockSize; b++){
+        residualNorm2[b] = 0.0;
+        residualNormInf[b] = 0.0;
+    }
+
+    {//March over each cell
+        // Extract the cell geometry, and the dm that holds the information
+        Vec cellgeom;
+        DM dmCell;
+        PetscInt dim;
+        const PetscScalar *cgeom;
+        ierr = DMPlexGetGeometryFVM(dm, NULL, &cellgeom, NULL);CHKERRQ(ierr);
+        ierr = VecGetDM(cellgeom, &dmCell);CHKERRQ(ierr);
+        ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+
+        // Get the cell start and end for the fv cells
+        PetscInt cStart, cEnd;
+        ierr = DMPlexGetSimplexOrBoxCells(dmCell, 0, &cStart, &cEnd);CHKERRQ(ierr);
+
         // temp read current residual
-        const PetscScalar *currentFArray;
-        ierr = VecGetArrayRead(globFVec, &currentFArray);CHKERRQ(ierr);
+        const PetscScalar *currentRHS;
         ierr = VecGetArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+        ierr = VecGetArrayRead(r, &currentRHS);CHKERRQ(ierr);
+
+        // Count up the cells
+        PetscInt count = 0;
 
         // March over each cell volume
         for (PetscInt c = cStart; c < cEnd; ++c) {
             PetscFVCellGeom       *cg;
-            const PetscReal           *fcCurrent;
+            const PetscReal           *rhsCurrent;
 
             ierr = DMPlexPointLocalRead(dmCell, c, cgeom, &cg);CHKERRQ(ierr);
-            ierr = DMPlexPointGlobalFieldRead(plex, c, 0, currentFArray, &fcCurrent);CHKERRQ(ierr);
+            ierr = DMPlexPointGlobalFieldRead(dm, c, 0, currentRHS, &rhsCurrent);CHKERRQ(ierr);
 
-            if(fcCurrent) {  // must be real cell and not ghost
-                if(PetscAbsReal(cg->centroid[0] - .5 ) < 1E-8 && PetscAbsReal(cg->centroid[1] - .5 )  < 1E-8){
-                    printf("Residual(%f, %f): %f %f %f %f\n", cg->centroid[0], cg->centroid[1], fcCurrent[0], fcCurrent[1], fcCurrent[2], fcCurrent[3]);
+            PetscBool countCell = PETSC_TRUE;
+            for(PetscInt d =0; d < dim; d++){
+                countCell = cg->centroid[d] < start[d] || cg->centroid[d] > end[d] ? PETSC_FALSE : countCell;
+            }
+
+            if(rhsCurrent && countCell ) {  // must be real cell and not ghost
+                for(PetscInt b =0; b < blockSize; b++){
+                    residualNorm2[b] += PetscSqr(rhsCurrent[b]);
+                    residualNormInf[b] = PetscMax(residualNormInf[b], PetscAbs(rhsCurrent[b]));
                 }
+                count++;
             }
         }
 
+        // normalize the norm2
+        for(PetscInt b =0; b < blockSize; b++){
+            residualNorm2[b] = PetscSqrtReal(residualNorm2[b]/count);
+        }
+
         // temp return current residual
-        ierr = VecRestoreArrayRead(globFVec, &currentFArray);CHKERRQ(ierr);
         ierr = VecRestoreArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
+        ierr = VecRestoreArrayRead(r, &currentRHS);CHKERRQ(ierr);
     }
 
-
-
-    PetscFunctionReturn(0);
-}
-
-PetscErrorCode DMTSCheckResidual(TS ts, DM dm, PetscReal t, Vec u, Vec u_t, PetscReal tol, PetscReal *residual)
-{
-    MPI_Comm       comm;
-    Vec            r;
-    PetscReal      res;
-    PetscErrorCode ierr;
-
-    PetscFunctionBeginUser;
-
-    ierr = PetscObjectGetComm((PetscObject) ts, &comm);CHKERRQ(ierr);
-    ierr = DMComputeExactSolution(dm, t, u, u_t);CHKERRQ(ierr);
-    ierr = VecDuplicate(u, &r);CHKERRQ(ierr);
-    ierr = TSComputeIFunction(ts, t, u, u_t, r, PETSC_FALSE);CHKERRQ(ierr);
-    ierr = VecNorm(r, NORM_2, &res);CHKERRQ(ierr);
-    if (tol >= 0.0) {
-        if (res > tol) SETERRQ2(comm, PETSC_ERR_ARG_WRONG, "L_2 Residual %g exceeds tolerance %g", (double) res, (double) tol);
-    } else if (residual) {
-        *residual = res;
-    } else {
-        ierr = PetscPrintf(comm, "L_2 Residual: %g\n", (double)res);CHKERRQ(ierr);
-        ierr = VecChop(r, 1.0e-10);CHKERRQ(ierr);
-        ierr = PetscObjectCompose((PetscObject) r, "__Vec_bc_zero__", (PetscObject) dm);CHKERRQ(ierr);
-        ierr = PetscObjectSetName((PetscObject) r, "Initial Residual");CHKERRQ(ierr);
-        ierr = PetscObjectSetOptionsPrefix((PetscObject)r,"res_");CHKERRQ(ierr);
-        ierr = VecViewFromOptions(r, NULL, "-vec_view");CHKERRQ(ierr);
-        ierr = PetscObjectCompose((PetscObject) r, "__Vec_bc_zero__", NULL);CHKERRQ(ierr);
-    }
+    ierr = VecDestroy(&sol);CHKERRQ(ierr);
     ierr = VecDestroy(&r);CHKERRQ(ierr);
     PetscFunctionReturn(0);
 }
-
 
 int main(int argc, char **argv)
 {
@@ -792,11 +694,11 @@ int main(int argc, char **argv)
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {constants.L, constants.L};
-    PetscInt nx[] = {5, 5};
+    PetscInt nx[] = {4, 4};
     DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
-//    // Output the mesh
+    // Output the mesh
     ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
 
     // Setup the flow data
@@ -851,14 +753,27 @@ int main(int argc, char **argv)
 
     // for the mms, add the exact solution
     ierr = PetscDSSetExactSolution(prob, 0, EulerExact, &constants);CHKERRQ(ierr);
-//    ierr = PetscDSSetExactSolution(prob, RHOE, RhoEExact, &constants);CHKERRQ(ierr);
-//    ierr = PetscDSSetExactSolution(prob, RHOU, RhoUExact, &constants);CHKERRQ(ierr);
     ierr = PetscDSSetExactSolutionTimeDerivative(prob, 0, EulerExactTimeDerivative, &constants);CHKERRQ(ierr);
-//    ierr = PetscDSSetExactSolutionTimeDerivative(prob, RHOE, RhoEExactTimeDerivative, &constants);CHKERRQ(ierr);
-//    ierr = PetscDSSetExactSolutionTimeDerivative(prob, RHOU, RhoUExactTimeDerivative, &constants);CHKERRQ(ierr);
 
-    // Output the mesh
+    TSSetMaxSteps(ts, 1);
+    ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
+
+    // Check the current residual
+    PetscReal l2Residual[4];
+    PetscReal infResidual[4];
+
+    // Only take the residual over the central 1/3
+    PetscReal resStart[2] = {1.0/3.0, 1.0/3.0};
+    PetscReal resEnd[2] = {2.0/3.0, 2.0/3.0};
+
+    ierr = ComputeRHS(ts, flowData->dm, 0.0, flowData->flowField, 4, l2Residual, infResidual, resStart, resEnd);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_2 Residual: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double) l2Residual[0], (double) l2Residual[1], (double) l2Residual[2], (double) l2Residual[3]);CHKERRQ(ierr);
+    ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_Inf Residual: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double) infResidual[0], (double) infResidual[1], (double) infResidual[2], (double) infResidual[3]);CHKERRQ(ierr);
+
+
     PetscReal time = 0.0;
+
+
 //    {
 //        Vec sol;
 //        VecDuplicate(flowData->flowField, &sol);
@@ -876,8 +791,6 @@ int main(int argc, char **argv)
 //        VecDestroy(&sol);
 //    }
 
-    TSSetMaxSteps(ts, 3);
-    ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
 
 //    {
 //        Vec sol;
