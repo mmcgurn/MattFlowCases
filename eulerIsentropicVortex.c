@@ -177,12 +177,9 @@ int main(int argc, char **argv)
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {constants.L, constants.L};
-    PetscInt nx[] = {25, 25};
-    DMBoundaryType bcType[] = {DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC};
+    PetscInt nx[] = {5, 5};
+    DMBoundaryType bcType[] = {DM_BOUNDARY_PERIODIC, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
-
-    // Output the mesh
-    ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
 
     // Setup the flow data
     FlowData flowData;     /* store some of the flow data*/
@@ -234,6 +231,9 @@ int main(int argc, char **argv)
     // for the mms, add the exact solution
     ierr = PetscDSSetExactSolution(prob, 0, EulerExact, &constants);CHKERRQ(ierr);
     ierr = PetscDSSetExactSolutionTimeDerivative(prob, 0, EulerExactTimeDerivative, &constants);CHKERRQ(ierr);
+    
+    // Output the mesh
+    ierr = DMViewFromOptions(flowData->dm, NULL, "-dm_view");CHKERRQ(ierr);
 
     TSSetMaxSteps(ts, 100);
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
