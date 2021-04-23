@@ -40,11 +40,26 @@ static PetscErrorCode EulerExact(PetscInt dim, PetscReal time, const PetscReal x
     PetscReal Tvort = constants->Tinf/(1.0 + 0.5*(constants->gamma - 1.0)*constants->Mac*constants->Mac);
     PetscReal aVort = PetscSqrtReal(constants->gamma*constants->Rgas*Tvort);
 
-    // compute the values at each location
-    PetscReal xStar = (xyz[0] - constants->xc)/constants->rc;
-    PetscReal yStar = (xyz[1] - constants->yc)/constants->rc;
-    PetscReal rStar = PetscSqrtReal(PetscSqr((xyz[0] - constants->xc))+ PetscSqr((xyz[1] - constants->yc)))/constants->rc;
+    // compute the values at each location based upon the time and the var field velocity
+    PetscReal distTraveledX = time*uInf;
+    PetscReal distTraveledY = time*vInf;
+    // compute the updated center
+    PetscReal xc = constants->xc + distTraveledX;
+    PetscReal yc = constants->yc + distTraveledY;
 
+    while(xc > constants->L){
+        xc -= constants->L;
+    }
+    while(yc > constants->L){
+        yc -= constants->L;
+    }
+
+    PetscReal x = xyz[0];
+    PetscReal y = xyz[1];
+
+    PetscReal xStar = (x- xc)/constants->rc;
+    PetscReal yStar = (y - yc)/constants->rc;
+    PetscReal rStar = PetscSqrtReal(PetscSqr((x - xc))+ PetscSqr((y - yc)))/constants->rc;
 
     PetscReal u = uInf - constants->Mac*aVort*yStar* PetscExpReal(0.5*(1.0 - PetscSqr(rStar)));
     PetscReal v = vInf + constants->Mac*aVort*xStar* PetscExpReal(0.5*(1.0 - PetscSqr(rStar)));
@@ -53,7 +68,6 @@ static PetscErrorCode EulerExact(PetscInt dim, PetscReal time, const PetscReal x
     PetscReal p = pInf* PetscPowReal(T/constants->Tinf, constants->gamma/(constants->gamma - 1.0));
     PetscReal rho = p/constants->Rgas/T;
     PetscReal e = p/((constants->gamma - 1.0)*rho);
-
     PetscReal eT = e + 0.5*(u*u + v*v);
 
     // Store the values
@@ -61,20 +75,6 @@ static PetscErrorCode EulerExact(PetscInt dim, PetscReal time, const PetscReal x
     node[RHOE] = rho*eT;
     node[RHOU + 0] = rho*u;
     node[RHOU + 1] = rho*v;
-
-    PetscFunctionReturn(0);
-}
-
-
-static PetscErrorCode EulerExactTimeDerivative(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *u, void *ctx) {
-    PetscFunctionBeginUser;
-    u[RHO] = 0.0;
-    u[RHOE] = 0.0;
-    u[RHOU + 0] = 0.0;
-    u[RHOU + 1] = 0.0;
-    if(dim > 2) {
-        u[RHOU + 2] = 0.0;
-    }
 
     PetscFunctionReturn(0);
 }
@@ -88,6 +88,16 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
 
     ierr = VecViewFromOptions(u, NULL, "-sol_view");CHKERRQ(ierr);
+
+    //Open a vtk viewer
+//    PetscViewer viewer;
+//    char        filename[PETSC_MAX_PATH_LEN];
+//    ierr = PetscSNPrintf(filename,sizeof(filename),"/Users/mcgurn/chrestScratch/results/vortex/flow%.4D.vtu",step);CHKERRQ(ierr);
+//    ierr = PetscViewerVTKOpen(PetscObjectComm((PetscObject)dm),filename,FILE_MODE_WRITE,&viewer);CHKERRQ(ierr);
+//    ierr = VecView(u,viewer);CHKERRQ(ierr);
+//    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+
+
     ierr = PetscPrintf(PetscObjectComm((PetscObject)dm), "TS at %f\n", time);CHKERRQ(ierr);
 
     // Compute the error
@@ -104,6 +114,9 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     ierr = VecDuplicate(u, &exactVec);CHKERRQ(ierr);
     ierr = DMProjectFunction(dm,time,exactFuncs,exactCtxs,INSERT_ALL_VALUES,exactVec);CHKERRQ(ierr);
 
+    ierr = PetscObjectSetName((PetscObject)exactVec, "exact");CHKERRQ(ierr);
+    ierr = VecViewFromOptions(exactVec, NULL, "-exact_view");CHKERRQ(ierr);
+
     // For each component, compute the l2 norms
     ierr = VecAXPY(exactVec, -1.0, u);CHKERRQ(ierr);
 
@@ -116,6 +129,9 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_2 Error: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double) ferrors[0], (double) ferrors[1], (double) ferrors[2], (double) ferrors[3]);CHKERRQ(ierr);
     ierr =  VecStrideNormAll(exactVec, NORM_INFINITY,ferrors);CHKERRQ(ierr);
     ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_Inf Error: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double) ferrors[0], (double) ferrors[1], (double) ferrors[2], (double) ferrors[3]);CHKERRQ(ierr);
+
+    ierr = PetscObjectSetName((PetscObject)exactVec, "error");CHKERRQ(ierr);
+    ierr = VecViewFromOptions(exactVec, NULL, "-exact_view");CHKERRQ(ierr);
 
     ierr = VecDestroy(&exactVec);CHKERRQ(ierr);
 
@@ -139,7 +155,6 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
 
 int main(int argc, char **argv)
 {
-
     // Setup the problem
     Constants constants;
 
@@ -155,6 +170,8 @@ int main(int argc, char **argv)
     constants.rc = .1*constants.L;
     constants.gamma = 1.4;
     constants.Mac = 0.3;
+    constants.MaxInf = 0.3;
+    constants.MayInf = 0.0;
 
 
 
@@ -177,8 +194,8 @@ int main(int argc, char **argv)
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {constants.L, constants.L};
-    PetscInt nx[] = {5, 5};
-    DMBoundaryType bcType[] = {DM_BOUNDARY_PERIODIC, DM_BOUNDARY_NONE};
+    PetscInt nx[] = {25, 25};
+    DMBoundaryType bcType[] = {DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
     // Setup the flow data
@@ -204,7 +221,7 @@ int main(int argc, char **argv)
     // Add in any boundary conditions
     PetscDS prob;
     ierr = DMGetDS(flowData->dm, &prob);
-//    CHKERRABORT(PETSC_COMM_WORLD, ierr);
+    CHKERRABORT(PETSC_COMM_WORLD, ierr);
 //    const PetscInt idsLeft[]= {1, 2, 3, 4};
 //    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "wall left", "Face Sets", 0, 0, NULL, (void (*)(void))PhysicsBoundary_Euler, NULL, 4, idsLeft, &constants);CHKERRQ(ierr);
 
@@ -221,7 +238,6 @@ int main(int argc, char **argv)
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
     ierr = TSMonitorSet(ts, MonitorError, &constants, NULL);CHKERRQ(ierr);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
-    ierr = TSSetMaxTime(ts, 0.01);CHKERRQ(ierr);
 
     // set the initial conditions
     PetscErrorCode     (*func[2]) (PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx) = {EulerExact};
@@ -230,12 +246,22 @@ int main(int argc, char **argv)
 
     // for the mms, add the exact solution
     ierr = PetscDSSetExactSolution(prob, 0, EulerExact, &constants);CHKERRQ(ierr);
-    ierr = PetscDSSetExactSolutionTimeDerivative(prob, 0, EulerExactTimeDerivative, &constants);CHKERRQ(ierr);
-    
+
     // Output the mesh
     ierr = DMViewFromOptions(flowData->dm, NULL, "-dm_view");CHKERRQ(ierr);
 
-    TSSetMaxSteps(ts, 100);
+
+    // Compute the end time so it goes around once
+    PetscReal aInf = PetscSqrtReal(constants.gamma*constants.Rgas*constants.Tinf);
+    PetscReal u_x = constants.MaxInf*aInf;
+    PetscReal endTime = constants.L/u_x;
+
+    PetscPrintf(PETSC_COMM_WORLD, "Final end time: %f\n", endTime);
+    TSSetMaxTime(ts, endTime);
+
+    PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
+
+
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
 
     return PetscFinalize();
