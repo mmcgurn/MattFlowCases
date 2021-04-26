@@ -47,8 +47,8 @@ static PetscErrorCode EulerExact(PetscInt dim, PetscReal time, const PetscReal x
     PetscReal xc = constants->xc + distTraveledX;
     PetscReal yc = constants->yc + distTraveledY;
 
-    while(xc > constants->L){
-        xc -= constants->L;
+    while(xc > constants->L*2){
+        xc -= constants->L*2;
     }
     while(yc > constants->L){
         yc -= constants->L;
@@ -83,58 +83,78 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     PetscFunctionBeginUser;
     PetscErrorCode     ierr;
 
-    // Get the DM
-    DM dm;
-    ierr = TSGetDM(ts, &dm);CHKERRQ(ierr);
+    if(step % 1000 == 0) {
+        // Get the DM
+        DM dm;
+        ierr = TSGetDM(ts, &dm);
+        CHKERRQ(ierr);
 
-    ierr = VecViewFromOptions(u, NULL, "-sol_view");CHKERRQ(ierr);
+        ierr = VecViewFromOptions(u, NULL, "-sol_view");
+        CHKERRQ(ierr);
 
-    //Open a vtk viewer
-//    PetscViewer viewer;
-//    char        filename[PETSC_MAX_PATH_LEN];
-//    ierr = PetscSNPrintf(filename,sizeof(filename),"/Users/mcgurn/chrestScratch/results/vortex/flow%.4D.vtu",step);CHKERRQ(ierr);
-//    ierr = PetscViewerVTKOpen(PetscObjectComm((PetscObject)dm),filename,FILE_MODE_WRITE,&viewer);CHKERRQ(ierr);
-//    ierr = VecView(u,viewer);CHKERRQ(ierr);
-//    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
+        // Open a vtk viewer
+        //    PetscViewer viewer;
+        //    char        filename[PETSC_MAX_PATH_LEN];
+        //    ierr = PetscSNPrintf(filename,sizeof(filename),"/Users/mcgurn/chrestScratch/results/vortex/flow%.4D.vtu",step);CHKERRQ(ierr);
+        //    ierr = PetscViewerVTKOpen(PetscObjectComm((PetscObject)dm),filename,FILE_MODE_WRITE,&viewer);CHKERRQ(ierr);
+        //    ierr = VecView(u,viewer);CHKERRQ(ierr);
+        //    ierr = PetscViewerDestroy(&viewer);CHKERRQ(ierr);
 
+        ierr = PetscPrintf(PetscObjectComm((PetscObject)dm), "TS at %f\n", time);
+        CHKERRQ(ierr);
 
-    ierr = PetscPrintf(PetscObjectComm((PetscObject)dm), "TS at %f\n", time);CHKERRQ(ierr);
+        // Compute the error
+        void *exactCtxs[1];
+        PetscErrorCode (*exactFuncs[1])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
+        PetscDS ds;
+        ierr = DMGetDS(dm, &ds);
+        CHKERRQ(ierr);
 
-    // Compute the error
-    void            *exactCtxs[1];
-    PetscErrorCode (*exactFuncs[1])(PetscInt dim, PetscReal time, const PetscReal x[], PetscInt Nf, PetscScalar *u, void *ctx);
-    PetscDS          ds;
-    ierr = DMGetDS(dm, &ds);CHKERRQ(ierr);
+        // Get the exact solution
+        ierr = PetscDSGetExactSolution(ds, 0, &exactFuncs[0], &exactCtxs[0]);
+        CHKERRQ(ierr);
 
-    // Get the exact solution
-    ierr = PetscDSGetExactSolution(ds, 0, &exactFuncs[0], &exactCtxs[0]);CHKERRQ(ierr);
+        // Create an vector to hold the exact solution
+        Vec exactVec;
+        ierr = VecDuplicate(u, &exactVec);
+        CHKERRQ(ierr);
+        ierr = DMProjectFunction(dm, time, exactFuncs, exactCtxs, INSERT_ALL_VALUES, exactVec);
+        CHKERRQ(ierr);
 
-    // Create an vector to hold the exact solution
-    Vec exactVec;
-    ierr = VecDuplicate(u, &exactVec);CHKERRQ(ierr);
-    ierr = DMProjectFunction(dm,time,exactFuncs,exactCtxs,INSERT_ALL_VALUES,exactVec);CHKERRQ(ierr);
+        ierr = PetscObjectSetName((PetscObject)exactVec, "exact");
+        CHKERRQ(ierr);
+        ierr = VecViewFromOptions(exactVec, NULL, "-exact_view");
+        CHKERRQ(ierr);
 
-    ierr = PetscObjectSetName((PetscObject)exactVec, "exact");CHKERRQ(ierr);
-    ierr = VecViewFromOptions(exactVec, NULL, "-exact_view");CHKERRQ(ierr);
+        // For each component, compute the l2 norms
+        ierr = VecAXPY(exactVec, -1.0, u);
+        CHKERRQ(ierr);
 
-    // For each component, compute the l2 norms
-    ierr = VecAXPY(exactVec, -1.0, u);CHKERRQ(ierr);
+        PetscReal ferrors[4];
+        ierr = VecSetBlockSize(exactVec, 4);
+        CHKERRQ(ierr);
 
-    PetscReal ferrors[4];
-    ierr = VecSetBlockSize(exactVec, 4);CHKERRQ(ierr);
+        ierr = PetscPrintf(PETSC_COMM_WORLD, "Timestep: %04d time = %-8.4g \t\n", (int)step, (double)time);
+        CHKERRQ(ierr);
+        ierr = VecStrideNormAll(exactVec, NORM_2, ferrors);
+        CHKERRQ(ierr);
+        ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_2 Error: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double)(ferrors[0]), (double)(ferrors[1]), (double)(ferrors[2]), (double)(ferrors[3]));
+        CHKERRQ(ierr);
 
-    // Compute the L2 Difference
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "Timestep: %04d time = %-8.4g \t\n", (int) step, (double) time);CHKERRQ(ierr);
-    ierr =  VecStrideNormAll(exactVec, NORM_2,ferrors);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_2 Error: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double) ferrors[0], (double) ferrors[1], (double) ferrors[2], (double) ferrors[3]);CHKERRQ(ierr);
-    ierr =  VecStrideNormAll(exactVec, NORM_INFINITY,ferrors);CHKERRQ(ierr);
-    ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_Inf Error: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double) ferrors[0], (double) ferrors[1], (double) ferrors[2], (double) ferrors[3]);CHKERRQ(ierr);
+        // And the infinity error
+        ierr = VecStrideNormAll(exactVec, NORM_INFINITY, ferrors);
+        CHKERRQ(ierr);
+        ierr = PetscPrintf(PETSC_COMM_WORLD, "\tL_Inf Error: [%2.3g, %2.3g, %2.3g, %2.3g]\n", (double)ferrors[0], (double)ferrors[1], (double)ferrors[2], (double)ferrors[3]);
+        CHKERRQ(ierr);
 
-    ierr = PetscObjectSetName((PetscObject)exactVec, "error");CHKERRQ(ierr);
-    ierr = VecViewFromOptions(exactVec, NULL, "-exact_view");CHKERRQ(ierr);
+        ierr = PetscObjectSetName((PetscObject)exactVec, "error");
+        CHKERRQ(ierr);
+        ierr = VecViewFromOptions(exactVec, NULL, "-exact_view");
+        CHKERRQ(ierr);
 
-    ierr = VecDestroy(&exactVec);CHKERRQ(ierr);
-
+        ierr = VecDestroy(&exactVec);
+        CHKERRQ(ierr);
+    }
     PetscFunctionReturn(0);
 }
 
@@ -173,8 +193,6 @@ int main(int argc, char **argv)
     constants.MaxInf = 0.3;
     constants.MayInf = 0.0;
 
-
-
     PetscErrorCode ierr;
     // create the mesh
     // setup the ts
@@ -187,16 +205,16 @@ int main(int argc, char **argv)
     // Create a ts
     ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
     ierr = TSSetProblemType(ts, TS_NONLINEAR);CHKERRQ(ierr);
-    ierr = TSSetType(ts, TSEULER);CHKERRQ(ierr);
+    ierr = TSSetType(ts, TSRK);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
     // Create a mesh
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
-    PetscReal end[] = {constants.L, constants.L};
-    PetscInt nx[] = {25, 25};
-    DMBoundaryType bcType[] = {DM_BOUNDARY_PERIODIC, DM_BOUNDARY_PERIODIC};
-    ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
+    PetscReal end[] = {constants.L*2, constants.L};
+    PetscReal nxHeight = 10;
+    PetscInt nx[] = {2*nxHeight, nxHeight};
+    ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, NULL, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
     // Setup the flow data
     FlowData flowData;     /* store some of the flow data*/
@@ -217,13 +235,13 @@ int main(int argc, char **argv)
 
     // set up the finite volume fluxes
     CompressibleFlow_StartProblemSetup(flowData, TOTAL_COMPRESSIBLE_FLOW_PARAMETERS, params);
-    DMView(flowData->dm, PETSC_VIEWER_STDERR_SELF);
+    DMView(flowData->dm, PETSC_VIEWER_STDOUT_WORLD);
     // Add in any boundary conditions
     PetscDS prob;
     ierr = DMGetDS(flowData->dm, &prob);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
-//    const PetscInt idsLeft[]= {1, 2, 3, 4};
-//    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "wall left", "Face Sets", 0, 0, NULL, (void (*)(void))PhysicsBoundary_Euler, NULL, 4, idsLeft, &constants);CHKERRQ(ierr);
+    const PetscInt idsLeft[]= {1, 2, 3, 4};
+    ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "wall left", "Face Sets", 0, 0, NULL, (void (*)(void))PhysicsBoundary_Euler, NULL, 4, idsLeft, &constants);CHKERRQ(ierr);
 
     // Complete the problem setup
     ierr = CompressibleFlow_CompleteProblemSetup(flowData, ts);
@@ -250,13 +268,11 @@ int main(int argc, char **argv)
     // Output the mesh
     ierr = DMViewFromOptions(flowData->dm, NULL, "-dm_view");CHKERRQ(ierr);
 
-
     // Compute the end time so it goes around once
     PetscReal aInf = PetscSqrtReal(constants.gamma*constants.Rgas*constants.Tinf);
     PetscReal u_x = constants.MaxInf*aInf;
     PetscReal endTime = constants.L/u_x;
 
-    PetscPrintf(PETSC_COMM_WORLD, "Final end time: %f\n", endTime);
     TSSetMaxTime(ts, endTime);
 
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
