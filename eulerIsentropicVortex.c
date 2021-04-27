@@ -280,6 +280,9 @@ int main(int argc, char **argv)
 
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
 
+    FlowDestroy(&flowData);
+    TSDestroy(&ts);
+
     return PetscFinalize();
 
 }
