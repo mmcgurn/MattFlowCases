@@ -83,7 +83,8 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     PetscFunctionBeginUser;
     PetscErrorCode     ierr;
 
-    if(step % 1000 == 0) {
+    PetscInt interval = 10;
+    if(step % interval == 0) {
         // Get the DM
         DM dm;
         ierr = TSGetDM(ts, &dm);
@@ -151,7 +152,6 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
         CHKERRQ(ierr);
         ierr = VecViewFromOptions(exactVec, NULL, "-exact_view");
         CHKERRQ(ierr);
-
         ierr = VecDestroy(&exactVec);
         CHKERRQ(ierr);
     }
@@ -226,7 +226,7 @@ int main(int argc, char **argv)
     problemSetup.constants = constants;
 
     //Setup
-    CompressibleFlow_SetupDiscretization(flowData, dm);
+    CompressibleFlow_SetupDiscretization(flowData, &dm);
 
     // Add in the flow parameters
     PetscScalar params[TOTAL_COMPRESSIBLE_FLOW_PARAMETERS];
@@ -276,7 +276,6 @@ int main(int argc, char **argv)
     TSSetMaxTime(ts, endTime);
 
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
-
 
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
 

@@ -6,6 +6,50 @@ static PetscErrorCode SetInitialCondition(PetscInt dim, PetscReal time, const Pe
     return 0;
 }
 
+
+static PetscErrorCode PrintFVGradients(DM dm){
+    PetscFunctionBeginUser;
+    PetscErrorCode ierr;
+
+    // Convert the dm to a plex
+    DM plex;
+    DMConvert(dm, DMPLEX, &plex);
+
+    // Get the start/end
+    PetscInt fStart;
+    PetscInt fEnd;
+    ierr = DMPlexGetHeightStratum(plex, 1, &fStart, &fEnd);CHKERRQ(ierr);
+
+    // Extract the cell geometry, and the dm that holds the information
+    Vec faceGeometry;
+    DM dmFace;
+    ierr = DMPlexGetGeometryFVM(plex, &faceGeometry, NULL, NULL);CHKERRQ(ierr);
+
+    ierr = VecGetDM(faceGeometry, &dmFace);CHKERRQ(ierr);
+
+    const PetscScalar *facegeom;
+    ierr = VecGetArrayRead(faceGeometry, &facegeom);CHKERRQ(ierr);
+
+    // Get the dim
+    PetscInt dim;
+    ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+
+    // March over each cell volume
+    for (PetscInt f = fStart; f < fEnd; ++f) {
+        PetscFVFaceGeom       *fg;
+
+        ierr = DMPlexPointLocalRead(dmFace, f, facegeom, &fg);CHKERRQ(ierr);
+
+        printf("Face Grad %d: ", f);
+        for(PetscInt d =0; d< dim; d++){
+            printf("%f/%f, ", fg->grad[0][d], fg->grad[1][d]);
+        }
+        printf("\n");
+    }
+
+    PetscFunctionReturn(0);
+}
+
 int main(int argc, char **argv)
 {
     DM             dm;
@@ -47,6 +91,8 @@ int main(int argc, char **argv)
     ierr = PetscObjectSetName((PetscObject) X, "solution");CHKERRQ(ierr);
     ierr = DMProjectFunction(dm, 0.0, func, NULL, INSERT_ALL_VALUES, X);CHKERRQ(ierr);
     ierr = VecViewFromOptions(X, NULL, "-vec_view");CHKERRQ(ierr);
+
+    PrintFVGradients(dm);
 
     ierr = VecDestroy(&X);CHKERRQ(ierr);
     ierr = DMDestroy(&dm);CHKERRQ(ierr);
