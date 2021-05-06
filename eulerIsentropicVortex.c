@@ -274,7 +274,7 @@ int main(int argc, char **argv)
     PetscReal endTime = constants.L/u_x;
 
     TSSetMaxTime(ts, endTime);
-
+    TSSetMaxSteps(ts, 2000);
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
 
 
