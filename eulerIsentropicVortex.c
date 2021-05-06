@@ -276,8 +276,12 @@ int main(int argc, char **argv)
     TSSetMaxTime(ts, endTime);
     TSSetMaxSteps(ts, 2000);
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
+    PetscLogStage solveStage;
+    PetscLogStageRegister("TSSolve",&solveStage);
 
+    PetscLogStagePush(solveStage);
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
+    PetscLogStagePop();
 
     FlowDestroy(&flowData);
     TSDestroy(&ts);

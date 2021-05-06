@@ -431,7 +431,6 @@ static PetscErrorCode SourceRhoE(PetscInt dim, PetscReal time, const PetscReal x
     PetscFunctionReturn(0);
 }
 
-
 static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, const PetscReal *n, const PetscScalar *a_xI, PetscScalar *a_xG, void *ctx) {
     PetscFunctionBeginUser;
     Constants *constants = (Constants *)ctx;
@@ -698,9 +697,6 @@ int main(int argc, char **argv)
     DMBoundaryType bcType[] = {DM_BOUNDARY_NONE, DM_BOUNDARY_NONE};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, bcType, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
-    // Output the mesh
-    ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
-
     // Setup the flow data
     FlowData flowData;     /* store some of the flow data*/
     ierr = FlowCreate(&flowData);CHKERRQ(ierr);
@@ -711,7 +707,7 @@ int main(int argc, char **argv)
     problemSetup.constants = constants;
 
     //Setup
-    CompressibleFlow_SetupDiscretization(flowData, dm);
+    CompressibleFlow_SetupDiscretization(flowData, &dm);
 
     // Add in the flow parameters
     PetscScalar params[TOTAL_COMPRESSIBLE_FLOW_PARAMETERS];
@@ -755,6 +751,9 @@ int main(int argc, char **argv)
     ierr = PetscDSSetExactSolution(prob, 0, EulerExact, &constants);CHKERRQ(ierr);
     ierr = PetscDSSetExactSolutionTimeDerivative(prob, 0, EulerExactTimeDerivative, &constants);CHKERRQ(ierr);
 
+    // Output the mesh
+    ierr = DMViewFromOptions(dm, NULL, "-dm_view");CHKERRQ(ierr);
+
     TSSetMaxSteps(ts, 1);
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
 
@@ -772,6 +771,7 @@ int main(int argc, char **argv)
 
 
     PetscReal time = 0.0;
+
 
 
 //    {
