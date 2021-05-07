@@ -208,12 +208,16 @@ int main(int argc, char **argv)
     ierr = TSSetType(ts, TSRK);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
+    PetscInt lengthFactor = 2;
+    ierr =  PetscOptionsGetInt(NULL, NULL, "lengthFactor", &lengthFactor, NULL);CHKERRQ(ierr);
+    PetscPrintf(PETSC_COMM_WORLD, "LengthFactor %d\n", lengthFactor);
+
     // Create a mesh
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
-    PetscReal end[] = {constants.L*2, constants.L};
+    PetscReal end[] = {constants.L*lengthFactor, constants.L};
     PetscReal nxHeight = 10;
-    PetscInt nx[] = {2*nxHeight, nxHeight};
+    PetscInt nx[] = {lengthFactor*nxHeight, nxHeight};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, NULL, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
     // Setup the flow data

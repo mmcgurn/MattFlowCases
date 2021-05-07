@@ -25,14 +25,26 @@ static PetscErrorCode InitialConditions(PetscInt dim, PetscReal time, const Pets
 
     PetscReal u = 0.0;
     PetscReal v = 0.0;
-    PetscReal p = 101325;
-    PetscReal T = 300.0;
+    PetscReal rho = 1.0;
 
-    if(xyz[0] > constants->L){
-        T = 400.0;
+    PetscReal Ti = 100;
+    PetscReal Tb = 300;
+
+    PetscReal cp = constants->gamma*constants->Rgas/(constants->gamma - 1);
+
+    PetscReal alpha = constants->k/(rho*cp);
+
+    // https://www.google.com/url?sa=t&rct=j&q=&esrc=s&source=web&cd=&ved=2ahUKEwj4hvHBwrXwAhWJY98KHSJnCl8QFjAIegQIBBAD&url=https%3A%2F%2Fwww.researchgate.net%2Ffile.PostFileLoader.html%3Fid%3D56882e7a614325f8078b457c%26assetKey%3DAS%253A313540840230912%25401451765369569&usg=AOvVaw1HgQiQUKKdHeQk_QI8O10r
+    // https://ocw.mit.edu/courses/mathematics/18-303-linear-partial-differential-equations-fall-2006/lecture-notes/heateqni.pdf
+    PetscReal T = 0.0;
+    for(PetscInt n =1; n < 10000; n ++){
+        PetscReal Bn = -Ti * 2.0*(-1.0 + PetscPowRealInt(-1.0, n))/(PETSC_PI*n);
+        PetscReal omegaN = n*PETSC_PI/constants->L;
+        T += Bn * PetscSinReal(omegaN * xyz[0])* PetscExpReal(- omegaN*omegaN*alpha*time);
     }
+    T += Tb;
 
-    PetscReal rho= p/(constants->Rgas*T);
+    PetscReal p= rho*constants->Rgas*T;
     PetscReal e = p/((constants->gamma - 1.0)*rho);
     PetscReal eT = e + 0.5*(u*u + v*v);
 
@@ -147,7 +159,7 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
     ProblemSetup *setup = (ProblemSetup *)ctx;
 
 
-    ierr = DMPlexTSComputeRHSFunctionFVM(dm, time, locXVec, globFVec, setup->flowData);CHKERRQ(ierr);
+     ierr = DMPlexTSComputeRHSFunctionFVM(dm, time, locXVec, globFVec, setup->flowData);CHKERRQ(ierr);
 
     Constants constants = setup->constants;
 
@@ -197,7 +209,7 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
     ierr = VecGetArray(locFVec, &fa);CHKERRQ(ierr);
 
     // march over each face
-    for (PetscInt face = faceStart, iface = 0; face < faceEnd; ++face) {
+    for (PetscInt face = faceStart; face < faceEnd; ++face) {
         PetscFVFaceGeom       *fg;
         PetscFVCellGeom       *cgL, *cgR;
 
@@ -235,7 +247,9 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
         // Compute the grad
         PetscReal fluxArea = 0.0;
         for (PetscInt d = 0; d < dim; ++d){
-            fluxArea += -constants.k *fg->normal[d]* (TR - TL)/(cgR->centroid[d] - cgL->centroid[d] + 1.0E-30);
+            // compute dx in that direction
+            PetscReal dx  = cgR->centroid[d] - cgL->centroid[d];
+            fluxArea += -constants.k *fg->normal[d]* (TR - TL) * dx /(dx*dx + 1.0E-60);
         }
 
         // Add to the source terms of f
@@ -271,14 +285,8 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
     PetscFunctionBeginUser;
     Constants *constants = (Constants *)ctx;
 
-    // Offset the calc assuming the cells are square
-    PetscReal x[3];
 
-    for(PetscInt i =0; i < constants->dim; i++){
-        x[i] = c[i] + n[i]*0.5;
-    }
-
-    InitialConditions(constants->dim, time, x, 0, a_xG, ctx);
+    InitialConditions(constants->dim, time, c, 0, a_xG, ctx);
     PetscFunctionReturn(0);
 }
 
@@ -303,7 +311,7 @@ int main(int argc, char **argv)
     constants.L = 1.0;
     constants.Rgas = 287.0;
     constants.gamma = 1.4;
-    constants.k = 1000;
+    constants.k = 0.02514;
     constants.Rgas = 287.0;
 
     PetscErrorCode ierr;
@@ -389,8 +397,16 @@ int main(int argc, char **argv)
     ierr = DMViewFromOptions(flowData->dm, NULL, "-dm_view");CHKERRQ(ierr);
 
     // Compute the end time so it goes around once
+    // compute dt
+    PetscReal dxMin = .001;
+    PetscReal cp = constants.gamma*constants.Rgas/(constants.gamma - 1);
+
+    PetscReal alpha = PetscAbs(constants.k/ (1.0 * cp));
+    double dt_conduc = PetscSqr(dxMin) / alpha;
+
+    TSSetTimeStep(ts, dt_conduc);
     TSSetMaxTime(ts, 1.0);
-    TSSetMaxSteps(ts, 1000);
+    TSSetMaxSteps(ts, 100);
 
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
 
