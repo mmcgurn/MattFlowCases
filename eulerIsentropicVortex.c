@@ -25,6 +25,9 @@ typedef struct {
     FlowData flowData;
 } ProblemSetup;
 
+static PetscLogStage monitorStage;
+
+
 static PetscErrorCode EulerExact(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *node, void *ctx) {
     PetscFunctionBeginUser;
 
@@ -82,8 +85,9 @@ static PetscErrorCode EulerExact(PetscInt dim, PetscReal time, const PetscReal x
 static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, void *ctx) {
     PetscFunctionBeginUser;
     PetscErrorCode     ierr;
+    PetscLogStagePush(monitorStage);
 
-    PetscInt interval = 10;
+    PetscInt interval = 1;
     if(step % interval == 0) {
         // Get the DM
         DM dm;
@@ -155,6 +159,7 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
         ierr = VecDestroy(&exactVec);
         CHKERRQ(ierr);
     }
+    PetscLogStagePop();
     PetscFunctionReturn(0);
 }
 
@@ -209,7 +214,7 @@ int main(int argc, char **argv)
     ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
     PetscInt lengthFactor = 2;
-    ierr =  PetscOptionsGetInt(NULL, NULL, "lengthFactor", &lengthFactor, NULL);CHKERRQ(ierr);
+    ierr =  PetscOptionsGetInt(NULL, NULL, "-lengthFactor", &lengthFactor, NULL);CHKERRQ(ierr);
     PetscPrintf(PETSC_COMM_WORLD, "LengthFactor %d\n", lengthFactor);
 
     // Create a mesh
@@ -278,15 +283,16 @@ int main(int argc, char **argv)
     PetscReal endTime = constants.L/u_x;
 
     TSSetMaxTime(ts, endTime);
-    TSSetMaxSteps(ts, 2000);
+    TSSetMaxSteps(ts, 25);
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
     PetscLogStage solveStage;
     PetscLogStageRegister("TSSolve",&solveStage);
+    PetscLogStageRegister("Monitor", &monitorStage);
 
     PetscLogStagePush(solveStage);
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
     PetscLogStagePop();
-
+    PetscPrintf(PETSC_COMM_WORLD, "Done");
     FlowDestroy(&flowData);
     TSDestroy(&ts);
 

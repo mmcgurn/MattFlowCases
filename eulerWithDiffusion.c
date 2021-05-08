@@ -285,6 +285,21 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
     PetscFunctionBeginUser;
     Constants *constants = (Constants *)ctx;
 
+    // Offset the calc assuming the cells are square
+    PetscReal rho = 1.0;
+    PetscReal T= 300.0;
+    PetscReal u, v = 0.0;
+    PetscReal p= rho*constants->Rgas*T;
+    PetscReal e = p/((constants->gamma - 1.0)*rho);
+    PetscReal eT = e + 0.5*(u*u + v*v);
+
+
+    // Store the values
+    a_xG[RHO] = rho;
+    a_xG[RHOE] = rho*eT;
+    a_xG[RHOU + 0] = rho*u;
+    a_xG[RHOU + 1] = rho*v;
+
 
     InitialConditions(constants->dim, time, c, 0, a_xG, ctx);
     PetscFunctionReturn(0);
@@ -311,7 +326,7 @@ int main(int argc, char **argv)
     constants.L = 1.0;
     constants.Rgas = 287.0;
     constants.gamma = 1.4;
-    constants.k = 0.02514;
+    constants.k = 2.;
     constants.Rgas = 287.0;
 
     PetscErrorCode ierr;
@@ -398,15 +413,15 @@ int main(int argc, char **argv)
 
     // Compute the end time so it goes around once
     // compute dt
-    PetscReal dxMin = .001;
+    PetscReal dxMin = 1.0/(nx[0]* PetscPowRealInt(2, 3));
     PetscReal cp = constants.gamma*constants.Rgas/(constants.gamma - 1);
 
     PetscReal alpha = PetscAbs(constants.k/ (1.0 * cp));
-    double dt_conduc = PetscSqr(dxMin) / alpha;
+    double dt_conduc = 0.01*PetscSqr(dxMin) / alpha;
 
     TSSetTimeStep(ts, dt_conduc);
-    TSSetMaxTime(ts, 1.0);
-    TSSetMaxSteps(ts, 100);
+//    TSSetMaxTime(ts, 1.0);
+    TSSetMaxSteps(ts, 400);
 
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
 
