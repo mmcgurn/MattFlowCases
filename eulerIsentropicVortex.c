@@ -263,7 +263,7 @@ int main(int argc, char **argv)
     // Setup the TS
     ierr = TSSetFromOptions(ts);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
-    ierr = TSMonitorSet(ts, MonitorError, &constants, NULL);CHKERRQ(ierr);
+//    ierr = TSMonitorSet(ts, MonitorError, &constants, NULL);CHKERRQ(ierr);
     CHKERRABORT(PETSC_COMM_WORLD, ierr);
 
     // set the initial conditions
@@ -283,7 +283,7 @@ int main(int argc, char **argv)
     PetscReal endTime = constants.L/u_x;
 
     TSSetMaxTime(ts, endTime);
-    TSSetMaxSteps(ts, 25);
+    TSSetMaxSteps(ts, 50);
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
     PetscLogStage solveStage;
     PetscLogStageRegister("TSSolve",&solveStage);
