@@ -23,16 +23,25 @@ static PetscReal ComputeTExact( PetscReal time, const PetscReal xyz[], Constants
     PetscReal cp = constants->gamma*constants->Rgas/(constants->gamma - 1);
 
     PetscReal alpha = constants->k/(rho*cp);
-
     PetscReal Tinitial = 100.0;
-    time += 0.0001/2.0;
     PetscReal T = 0.0;
-    for(PetscReal n =1; n < 20000; n ++){
+    for(PetscReal n =1; n < 2000; n ++){
         PetscReal Bn = -Tinitial*2.0*(-1.0 + PetscPowReal(-1.0, n))/(n*PETSC_PI);
         T += Bn*PetscSinReal(n * PETSC_PI*xyz[0]/constants->L)*PetscExpReal(-n*n*PETSC_PI*PETSC_PI*alpha*time/(PetscSqr(constants->L)));
     }
 
-    return T;
+//    PetscReal TOther = 0.0;
+//    for(PetscReal n =1; n < 2000000; n ++){
+//        TOther += 4.0*Tinitial/((2.0*n -1.0) * PETSC_PI) * PetscSinReal((2.0*n - 1) * PETSC_PI*xyz[0]/constants->L) * PetscExpReal(-alpha* PetscSqr(2.0*n-1)*PETSC_PI*PETSC_PI*time/PetscSqr(constants->L));
+//    }
+//
+//    PetscReal TOther2 = 0.0;
+//    for(PetscReal n =1; n < 2000000; n += 2){// odd only
+//        TOther2 += 4.0*Tinitial/(n*PETSC_PI)* PetscExpReal(-n*n*PETSC_PI*PETSC_PI*alpha*time/PetscSqr(constants->L))*sin(n*PETSC_PI*xyz[0]/constants->L);
+//    }
+
+
+    return T;//xyz[0];
 }
 
 static PetscErrorCode InitialConditions(PetscInt dim, PetscReal time, const PetscReal xyz[], PetscInt Nf, PetscScalar *node, void *ctx) {
@@ -40,7 +49,7 @@ static PetscErrorCode InitialConditions(PetscInt dim, PetscReal time, const Pets
 
     Constants *constants = (Constants *)ctx;
 
-    PetscReal T = 300.0 +   ComputeTExact(time, xyz, constants, 1.0);
+    PetscReal T = ComputeTExact(time, xyz, constants, 1.0);
 
     PetscReal u = 0.0;
     PetscReal v = 0.0;
@@ -50,7 +59,7 @@ static PetscErrorCode InitialConditions(PetscInt dim, PetscReal time, const Pets
     PetscReal eT = e + 0.5*(u*u + v*v);
 
     node[RHO] = rho;
-    node[RHOE] = rho*eT;
+    node[RHOE] = T;//rho*eT;
     node[RHOU + 0] = rho*u;
     node[RHOU + 1] = rho*v;
 
@@ -147,7 +156,9 @@ static PetscReal computeTemperature(PetscInt dim, const PetscScalar* conservedVa
     PetscReal p = (gamma - 1.0)*density*internalEnergy;
 
     PetscReal T = p/(Rgas*density);
-    return T;
+//    return T;
+
+    return conservedValues[RHOE];
 }
 
 static PetscErrorCode UpdateAuxFields(TS ts, Vec locXVec, void*context){
@@ -282,23 +293,17 @@ static PetscErrorCode MonitorError(TS ts, PetscInt step, PetscReal time, Vec u, 
     PetscFunctionReturn(0);
 }
 
+
 static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec globFVec, void *ctx){
     // Call the flux calculation
     PetscErrorCode ierr;
 
     ProblemSetup *setup = (ProblemSetup *)ctx;
 
-    // call the base rhs function eval
+
     ierr = DMPlexTSComputeRHSFunctionFVM(dm, time, locXVec, globFVec, setup->flowData);CHKERRQ(ierr);
 
-    // update the aux fields
-    ierr = UpdateAuxFields(NULL, locXVec, setup->flowData);CHKERRQ(ierr);
-
     Constants constants = setup->constants;
-
-    // get the fvm field assuming that it is the first
-    PetscFV auxFvm;
-    ierr = DMGetField(setup->flowData->auxDm,0, NULL, (PetscObject*)&auxFvm);CHKERRQ(ierr);
 
     PetscInt dim;
     ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
@@ -310,17 +315,7 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
     // Get the fvm face and cell geometry
     Vec cellGeomVec = NULL;/* vector of structs related to cell geometry*/
     Vec faceGeomVec = NULL;/* vector of structs related to face geometry*/
-
-    // extract the fvm data
-    ierr = DMPlexGetGeometryFVM(setup->flowData->dm, &faceGeomVec, &cellGeomVec, NULL);CHKERRQ(ierr);
-
-    // Get the needed auxDm
-    DM auxFieldGradDM = NULL; /* dm holding the grad information */
-    ierr = DMPlexGetDataFVM(setup->flowData->auxDm, auxFvm, NULL, NULL, &auxFieldGradDM);CHKERRQ(ierr);
-    if(!auxFieldGradDM){
-        SETERRQ(PetscObjectComm((PetscObject)setup->flowData->auxDm), PETSC_ERR_ARG_WRONGSTATE, "The FVM method for aux variables must support computing gradients.");
-    }
-
+    ierr = DMPlexGetGeometryFVM(dm, &faceGeomVec, &cellGeomVec, NULL);CHKERRQ(ierr);
 
     // get the dm for each geom type
     DM dmFaceGeom, dmCellGeom;
@@ -338,6 +333,12 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
     ierr = DMPlexGetHeightStratum(dm, 1, &faceStart, &faceEnd);CHKERRQ(ierr);
     ierr = DMPlexGetHeightStratum(dm, 0, &cellStart, &cellEnd);CHKERRQ(ierr);
 
+    // get the fvm and the number of fields
+    PetscFV fvm;
+    ierr = DMGetField(dm,0, NULL, (PetscObject*)&fvm);CHKERRQ(ierr);
+    PetscInt components;
+    ierr = PetscFVGetNumComponents(fvm, &components);CHKERRQ(ierr);
+
     // get the ghost label
     DMLabel ghostLabel;
     ierr = DMGetLabel(dm, "ghost", &ghostLabel);CHKERRQ(ierr);
@@ -349,28 +350,10 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
     ierr = VecZeroEntries(locFVec);CHKERRQ(ierr);
     ierr = VecGetArray(locFVec, &fa);CHKERRQ(ierr);
 
-    // create a global and local grad vector for the auxField
-    Vec gradGlobalVec, gradLocalVec;
-    ierr = DMCreateGlobalVector(auxFieldGradDM, &gradGlobalVec);CHKERRQ(ierr);
-
-    // compute the global grad values
-    ierr = DMPlexReconstructGradientsFVM(setup->flowData->auxDm, setup->flowData->auxField, gradGlobalVec);CHKERRQ(ierr);
-
-    // Map to a local grad vector
-    ierr = DMCreateLocalVector(auxFieldGradDM, &gradLocalVec);CHKERRQ(ierr);
-    ierr = DMGlobalToLocalBegin(auxFieldGradDM, gradGlobalVec, INSERT_VALUES, gradLocalVec);CHKERRQ(ierr);
-    ierr = DMGlobalToLocalEnd(auxFieldGradDM, gradGlobalVec, INSERT_VALUES, gradLocalVec);CHKERRQ(ierr);
-
-    // access the local vector
-    const PetscScalar *localGradArray;
-    ierr = VecGetArrayRead(gradLocalVec,&localGradArray);CHKERRQ(ierr);
-
     // march over each face
     for (PetscInt face = faceStart; face < faceEnd; ++face) {
         PetscFVFaceGeom       *fg;
         PetscFVCellGeom       *cgL, *cgR;
-        const PetscScalar           *gradL;
-        const PetscScalar           *gradR;
 
         // make sure that this is a valid face to check
         PetscInt  ghost, nsupp, nchild;
@@ -392,10 +375,6 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
         ierr = DMPlexPointLocalRead(dmCellGeom, faceCells[0], cellGeomArray, &cgL);CHKERRQ(ierr);
         ierr = DMPlexPointLocalRead(dmCellGeom, faceCells[1], cellGeomArray, &cgR);CHKERRQ(ierr);
 
-        // extract the cell grad
-        ierr = DMPlexPointLocalRead(auxFieldGradDM, faceCells[0], localGradArray, &gradL);CHKERRQ(ierr);
-        ierr = DMPlexPointLocalRead(auxFieldGradDM, faceCells[1], localGradArray, &gradR);CHKERRQ(ierr);
-
         PetscInt f = 0;
 
         // extract the field values
@@ -403,35 +382,41 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
         ierr = DMPlexPointLocalFieldRead(dm, faceCells[0], f, locXArray, &xL);CHKERRQ(ierr);
         ierr = DMPlexPointLocalFieldRead(dm, faceCells[1], f, locXArray, &xR);CHKERRQ(ierr);
 
+        // compute the temperature at the left and right nodes
+        PetscReal TL = computeTemperature(dim, xL, constants.gamma, constants.Rgas);
+        PetscReal TR = computeTemperature(dim, xR, constants.gamma, constants.Rgas);
+
+        // Compute the ds vector
+        PetscReal dsVec[3];
+        PetscReal ds = 0.0;
+        PetscReal dsDotNorm = 0.0;
+        PetscReal normalArea = 0.0;
+        for (PetscInt d = 0; d < dim; ++d) {
+            dsVec[d] = cgR->centroid[d] - cgL->centroid[d];
+            ds += PetscSqr(dsVec[d]);
+            dsDotNorm += dsVec[d]*fg->normal[d];
+            normalArea += PetscSqr(fg->normal[d]);
+        }
+        ds = PetscSqrtReal(ds);
+        normalArea = PetscSqrtReal(normalArea);
+
+        // Compute the normal flux
+        PetscReal cp = constants.gamma*constants.Rgas/(constants.gamma - 1);
+
+        PetscReal normalFlux =  -constants.k/cp*normalArea * (TR - TL)/ds;
+
         // Add to the source terms of f
         PetscScalar    *fL = NULL, *fR = NULL;
-        PetscInt  ghostL, ghostR;
-        ierr = DMLabelGetValue(ghostLabel,faceCells[0],&ghostL);CHKERRQ(ierr);
-        if (ghostL <= 0) {ierr = DMPlexPointLocalFieldRef(dm, faceCells[0], f, fa, &fL);CHKERRQ(ierr);}
-        ierr = DMLabelGetValue(ghostLabel,faceCells[1],&ghostR);CHKERRQ(ierr);
-        if (ghostR <= 0) {ierr = DMPlexPointLocalFieldRef(dm, faceCells[1], f, fa, &fR);CHKERRQ(ierr);}
-
-        // Compute the normal grad
-        PetscReal normalGrad = 0.0;
-        PetscInt dof = 0;
-        for (PetscInt d = 0; d < dim; ++d){
-            if(ghostL <= 0 && ghostR <= 0){
-                normalGrad += fg->normal[d]*0.5*(gradL[dof*dim + d] + gradR[dof*dim + d]);
-            }else if(ghostL <=0 ){
-                normalGrad += fg->normal[d]*gradL[dof*dim + d];
-            }else{
-                normalGrad += fg->normal[d]*gradR[dof*dim + d];
-            }
-        }
-
-        // compute the normal heatFlux
-        PetscReal normalHeatFlux = -constants.k *normalGrad;
+        ierr = DMLabelGetValue(ghostLabel,faceCells[0],&ghost);CHKERRQ(ierr);
+        if (ghost <= 0) {ierr = DMPlexPointLocalFieldRef(dm, faceCells[0], f, fa, &fL);CHKERRQ(ierr);}
+        ierr = DMLabelGetValue(ghostLabel,faceCells[1],&ghost);CHKERRQ(ierr);
+        if (ghost <= 0) {ierr = DMPlexPointLocalFieldRef(dm, faceCells[1], f, fa, &fR);CHKERRQ(ierr);}
 
         if(fL){
-            fL[RHOE] -= normalHeatFlux/cgL->volume;
+            fL[RHOE] -= normalFlux/cgL->volume;
         }
         if(fR){
-            fR[RHOE] += normalHeatFlux/cgR->volume;
+            fR[RHOE] += normalFlux/cgR->volume;
         }
     }
 
@@ -442,17 +427,187 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
     ierr = DMRestoreLocalVector(dm, &locFVec);CHKERRQ(ierr);
 
     // restore the arrays
-    ierr = VecRestoreArrayRead(gradLocalVec, &localGradArray);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(cellGeomVec, &cellGeomArray);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(faceGeomVec, &faceGeomArray);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(locXVec, &locXArray);CHKERRQ(ierr);
 
-    // destroy grad vectors
-    ierr = VecDestroy(&gradGlobalVec);CHKERRQ(ierr);
-    ierr = VecDestroy(&gradLocalVec);CHKERRQ(ierr);
-
     PetscFunctionReturn(0);
 }
+
+
+//static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec globFVec, void *ctx){
+//    // Call the flux calculation
+//    PetscErrorCode ierr;
+//
+//    ProblemSetup *setup = (ProblemSetup *)ctx;
+//
+//    // call the base rhs function eval
+//    ierr = DMPlexTSComputeRHSFunctionFVM(dm, time, locXVec, globFVec, setup->flowData);CHKERRQ(ierr);
+//
+//    // update the aux fields
+//    ierr = UpdateAuxFields(NULL, locXVec, setup->flowData);CHKERRQ(ierr);
+//
+//    Constants constants = setup->constants;
+//
+//    // get the fvm field assuming that it is the first
+//    PetscFV auxFvm;
+//    ierr = DMGetField(setup->flowData->auxDm,0, NULL, (PetscObject*)&auxFvm);CHKERRQ(ierr);
+//
+//    PetscInt dim;
+//    ierr = DMGetDimension(dm, &dim);CHKERRQ(ierr);
+//
+//    // Get the locXArray
+//    const PetscScalar *locXArray;
+//    ierr = VecGetArrayRead(locXVec, &locXArray);CHKERRQ(ierr);
+//
+//    // Get the fvm face and cell geometry
+//    Vec cellGeomVec = NULL;/* vector of structs related to cell geometry*/
+//    Vec faceGeomVec = NULL;/* vector of structs related to face geometry*/
+//
+//    // extract the fvm data
+//    ierr = DMPlexGetGeometryFVM(setup->flowData->dm, &faceGeomVec, &cellGeomVec, NULL);CHKERRQ(ierr);
+//
+//    // Get the needed auxDm
+//    DM auxFieldGradDM = NULL; /* dm holding the grad information */
+//    ierr = DMPlexGetDataFVM(setup->flowData->auxDm, auxFvm, NULL, NULL, &auxFieldGradDM);CHKERRQ(ierr);
+//    if(!auxFieldGradDM){
+//        SETERRQ(PetscObjectComm((PetscObject)setup->flowData->auxDm), PETSC_ERR_ARG_WRONGSTATE, "The FVM method for aux variables must support computing gradients.");
+//    }
+//
+//
+//    // get the dm for each geom type
+//    DM dmFaceGeom, dmCellGeom;
+//    ierr = VecGetDM(faceGeomVec, &dmFaceGeom);CHKERRQ(ierr);
+//    ierr = VecGetDM(cellGeomVec, &dmCellGeom);CHKERRQ(ierr);
+//
+//    // extract the arrays for the face and cell geom, along with their dm
+//    const PetscScalar *faceGeomArray, *cellGeomArray;
+//    ierr = VecGetArrayRead(cellGeomVec, &cellGeomArray);CHKERRQ(ierr);
+//    ierr = VecGetArrayRead(faceGeomVec, &faceGeomArray);CHKERRQ(ierr);
+//
+//    // Obtaining local cell and face ownership
+//    PetscInt faceStart, faceEnd;
+//    PetscInt cellStart, cellEnd;
+//    ierr = DMPlexGetHeightStratum(dm, 1, &faceStart, &faceEnd);CHKERRQ(ierr);
+//    ierr = DMPlexGetHeightStratum(dm, 0, &cellStart, &cellEnd);CHKERRQ(ierr);
+//
+//    // get the ghost label
+//    DMLabel ghostLabel;
+//    ierr = DMGetLabel(dm, "ghost", &ghostLabel);CHKERRQ(ierr);
+//
+//    // extract the localFArray from the locFVec
+//    PetscScalar *fa;
+//    Vec locFVec;
+//    ierr = DMGetLocalVector(dm, &locFVec);CHKERRQ(ierr);
+//    ierr = VecZeroEntries(locFVec);CHKERRQ(ierr);
+//    ierr = VecGetArray(locFVec, &fa);CHKERRQ(ierr);
+//
+//    // create a global and local grad vector for the auxField
+//    Vec gradGlobalVec, gradLocalVec;
+//    ierr = DMCreateGlobalVector(auxFieldGradDM, &gradGlobalVec);CHKERRQ(ierr);
+//    ierr = VecSet(gradGlobalVec, NAN);CHKERRQ(ierr);
+//
+//    // compute the global grad values
+//    ierr = DMPlexReconstructGradientsFVM(setup->flowData->auxDm, setup->flowData->auxField, gradGlobalVec);CHKERRQ(ierr);
+//
+//    // Map to a local grad vector
+//    ierr = DMCreateLocalVector(auxFieldGradDM, &gradLocalVec);CHKERRQ(ierr);
+//    ierr = DMGlobalToLocalBegin(auxFieldGradDM, gradGlobalVec, INSERT_VALUES, gradLocalVec);CHKERRQ(ierr);
+//    ierr = DMGlobalToLocalEnd(auxFieldGradDM, gradGlobalVec, INSERT_VALUES, gradLocalVec);CHKERRQ(ierr);
+//
+//    VecView(gradLocalVec, PETSC_VIEWER_STDOUT_WORLD);
+//
+//    // access the local vector
+//    const PetscScalar *localGradArray;
+//    ierr = VecGetArrayRead(gradLocalVec,&localGradArray);CHKERRQ(ierr);
+//
+//    // march over each face
+//    for (PetscInt face = faceStart; face < faceEnd; ++face) {
+//        PetscFVFaceGeom       *fg;
+//        PetscFVCellGeom       *cgL, *cgR;
+//        const PetscScalar           *gradL;
+//        const PetscScalar           *gradR;
+//
+//        // make sure that this is a valid face to check
+//        PetscInt  ghost, nsupp, nchild;
+//        ierr = DMLabelGetValue(ghostLabel, face, &ghost);CHKERRQ(ierr);
+//        ierr = DMPlexGetSupportSize(dm, face, &nsupp);CHKERRQ(ierr);
+//        ierr = DMPlexGetTreeChildren(dm, face, &nchild, NULL);CHKERRQ(ierr);
+//        if (ghost >= 0 || nsupp > 2 || nchild > 0){
+//            continue;// skip this face
+//        }
+//
+//        // get the face geometry
+//        ierr = DMPlexPointLocalRead(dmFaceGeom, face, faceGeomArray, &fg);CHKERRQ(ierr);
+//
+//        // Get the left and right cells for this face
+//        const PetscInt        *faceCells;
+//        ierr = DMPlexGetSupport(dm, face, &faceCells);CHKERRQ(ierr);
+//
+//        // get the cell geom for the left and right faces
+//        ierr = DMPlexPointLocalRead(dmCellGeom, faceCells[0], cellGeomArray, &cgL);CHKERRQ(ierr);
+//        ierr = DMPlexPointLocalRead(dmCellGeom, faceCells[1], cellGeomArray, &cgR);CHKERRQ(ierr);
+//
+//        // extract the cell grad
+//        ierr = DMPlexPointLocalRead(auxFieldGradDM, faceCells[0], localGradArray, &gradL);CHKERRQ(ierr);
+//        ierr = DMPlexPointLocalRead(auxFieldGradDM, faceCells[1], localGradArray, &gradR);CHKERRQ(ierr);
+//
+//        PetscInt f = 0;
+//
+//        // extract the field values
+//        PetscScalar *xL, *xR,
+//        ierr = DMPlexPointLocalFieldRead(dm, faceCells[0], f, locXArray, &xL);CHKERRQ(ierr);
+//        ierr = DMPlexPointLocalFieldRead(dm, faceCells[1], f, locXArray, &xR);CHKERRQ(ierr);
+//
+//        // Compute the normal grad
+//        PetscReal normalGrad = 0.0;
+//        PetscInt dof = 0;
+//        for (PetscInt d = 0; d < dim; ++d){
+//            if(fg->grad[0][d] && fg->grad[1][d]){
+//                normalGrad += fg->normal[d]*0.5*(gradL[dof*dim + d] + gradR[dof*dim + d]);
+//            }else if(fg->grad[0][d] ){
+//                normalGrad += fg->normal[d]*gradL[dof*dim + d];
+//            }else{
+//                normalGrad += fg->normal[d]*gradR[dof*dim + d];
+//            }
+//        }
+//
+//        // compute the normal heatFlux
+//        PetscReal normalHeatFlux = -constants.k *normalGrad;
+//
+//        // Add to the source terms of f
+//        PetscScalar    *fL = NULL, *fR = NULL;
+//        ierr = DMLabelGetValue(ghostLabel,faceCells[0],&ghost);CHKERRQ(ierr);
+//        if (ghost <= 0) {ierr = DMPlexPointLocalFieldRef(dm, faceCells[0], f, fa, &fL);CHKERRQ(ierr);}
+//        ierr = DMLabelGetValue(ghostLabel,faceCells[1],&ghost);CHKERRQ(ierr);
+//        if (ghost <= 0) {ierr = DMPlexPointLocalFieldRef(dm, faceCells[1], f, fa, &fR);CHKERRQ(ierr);}
+//
+//        if(fL){
+//            fL[RHOE] -= normalHeatFlux/cgL->volume;
+//        }
+//        if(fR){
+//            fR[RHOE] += normalHeatFlux/cgR->volume;
+//        }
+//    }
+//
+//    // Add the new locFVec to the globFVec
+//    ierr = VecRestoreArray(locFVec, &fa);CHKERRQ(ierr);
+//    ierr = DMLocalToGlobalBegin(dm, locFVec, INSERT_VALUES, globFVec);CHKERRQ(ierr);
+//    ierr = DMLocalToGlobalEnd(dm, locFVec, INSERT_VALUES, globFVec);CHKERRQ(ierr);
+//    ierr = DMRestoreLocalVector(dm, &locFVec);CHKERRQ(ierr);
+//
+//    // restore the arrays
+//    ierr = VecRestoreArrayRead(gradLocalVec, &localGradArray);CHKERRQ(ierr);
+//    ierr = VecRestoreArrayRead(cellGeomVec, &cellGeomArray);CHKERRQ(ierr);
+//    ierr = VecRestoreArrayRead(faceGeomVec, &faceGeomArray);CHKERRQ(ierr);
+//    ierr = VecRestoreArrayRead(locXVec, &locXArray);CHKERRQ(ierr);
+//
+//    // destroy grad vectors
+//    ierr = VecDestroy(&gradGlobalVec);CHKERRQ(ierr);
+//    ierr = VecDestroy(&gradLocalVec);CHKERRQ(ierr);
+//
+//    PetscFunctionReturn(0);
+//}
 
 static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, const PetscReal *n, const PetscScalar *a_xI, PetscScalar *a_xG, void *ctx) {
     PetscFunctionBeginUser;
@@ -466,10 +621,12 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
     }
 
     // compute the temperature
-    PetscReal Tinside = 300.0 +   ComputeTExact(time, x, constants, 1.0);
-    PetscReal boundaryValue = 300.0;
+    PetscReal Tinside =   ComputeTExact(time, x, constants, 1.0);
+    PetscReal boundaryValue = 0.0;
 
     PetscReal T = boundaryValue - (Tinside - boundaryValue);
+
+//    PetscReal T = c[0] < constants->L/2.0 ? 300 : 400;
 
     PetscReal u = 0.0;
     PetscReal v = 0.0;
@@ -479,7 +636,7 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
     PetscReal eT = e + 0.5*(u*u + v*v);
 
     a_xG[RHO] = rho;
-    a_xG[RHOE] = rho*eT;
+    a_xG[RHOE] = T;//rho*eT;
     a_xG[RHOU + 0] = rho*u;
     a_xG[RHOU + 1] = rho*v;
 
@@ -504,7 +661,7 @@ int main(int argc, char **argv)
 
     // sub sonic
     constants.dim = 2;
-    constants.L = 0.01;
+    constants.L = 0.1;
     constants.gamma = 1.4;
     constants.k = 0.3;
     constants.Rgas = 1;//287.0;
@@ -521,14 +678,14 @@ int main(int argc, char **argv)
     // Create a ts
     ierr = TSCreate(PETSC_COMM_WORLD, &ts);CHKERRQ(ierr);
     ierr = TSSetProblemType(ts, TS_NONLINEAR);CHKERRQ(ierr);
-    ierr = TSSetType(ts, TSRK);CHKERRQ(ierr);
+    ierr = TSSetType(ts, TSEULER);CHKERRQ(ierr);
     ierr = TSSetExactFinalTime(ts, TS_EXACTFINALTIME_MATCHSTEP);CHKERRQ(ierr);
 
     // Create a mesh
     // hard code the problem setup
     PetscReal start[] = {0.0, 0.0};
     PetscReal end[] = {constants.L, constants.L};
-    PetscReal nxHeight = 9;
+    PetscReal nxHeight = 3;
     PetscInt nx[] = {nxHeight, nxHeight};
     ierr = DMPlexCreateBoxMesh(PETSC_COMM_WORLD, constants.dim, PETSC_FALSE, nx, start, end, NULL, PETSC_TRUE, &dm);CHKERRQ(ierr);
 
@@ -598,12 +755,12 @@ int main(int argc, char **argv)
     PetscReal dxMin = constants.L/(10 * PetscPowRealInt(2, 2));
 
     PetscReal alpha = PetscAbs(constants.k/ (1.0 * 1.0));
-    double dt_conduc = 1.0*PetscSqr(dxMin) / alpha;
+    double dt_conduc = .3*PetscSqr(dxMin) / alpha;
 
     PetscPrintf(PETSC_COMM_WORLD, "dt_conduc: %f\n", dt_conduc);
     TSSetTimeStep(ts, dt_conduc);
-    TSSetMaxTime(ts, 0.0001);
-    TSSetMaxSteps(ts, 50);
+//    TSSetMaxTime(ts, 0.001);
+    TSSetMaxSteps(ts, 600);
 
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
 
