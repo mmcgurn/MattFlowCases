@@ -20,9 +20,9 @@ typedef struct {
 
 static PetscReal ComputeTExact( PetscReal time, const PetscReal xyz[], Constants *constants, PetscReal rho){
 
-    PetscReal cp = constants->gamma*constants->Rgas/(constants->gamma - 1);
+    PetscReal cv = constants->gamma*constants->Rgas/(constants->gamma - 1) - constants->Rgas;
 
-    PetscReal alpha = constants->k/(rho*cp);
+    PetscReal alpha = constants->k/(rho*cv);
     PetscReal Tinitial = 100.0;
     PetscReal T = 0.0;
     for(PetscReal n =1; n < 2000; n ++){
@@ -59,7 +59,7 @@ static PetscErrorCode InitialConditions(PetscInt dim, PetscReal time, const Pets
     PetscReal eT = e + 0.5*(u*u + v*v);
 
     node[RHO] = rho;
-    node[RHOE] = T;//rho*eT;
+    node[RHOE] = rho*eT;
     node[RHOU + 0] = rho*u;
     node[RHOU + 1] = rho*v;
 
@@ -156,9 +156,8 @@ static PetscReal computeTemperature(PetscInt dim, const PetscScalar* conservedVa
     PetscReal p = (gamma - 1.0)*density*internalEnergy;
 
     PetscReal T = p/(Rgas*density);
-//    return T;
 
-    return conservedValues[RHOE];
+    return T;
 }
 
 static PetscErrorCode UpdateAuxFields(TS ts, Vec locXVec, void*context){
@@ -401,9 +400,7 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
         normalArea = PetscSqrtReal(normalArea);
 
         // Compute the normal flux
-        PetscReal cp = constants.gamma*constants.Rgas/(constants.gamma - 1);
-
-        PetscReal normalFlux =  -constants.k/cp*normalArea * (TR - TL)/ds;
+        PetscReal normalFlux =  -constants.k*normalArea * (TR - TL)/ds;
 
         // Add to the source terms of f
         PetscScalar    *fL = NULL, *fR = NULL;
@@ -636,7 +633,7 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
     PetscReal eT = e + 0.5*(u*u + v*v);
 
     a_xG[RHO] = rho;
-    a_xG[RHOE] = T;//rho*eT;
+    a_xG[RHOE] = rho*eT;
     a_xG[RHOU + 0] = rho*u;
     a_xG[RHOU + 1] = rho*v;
 
