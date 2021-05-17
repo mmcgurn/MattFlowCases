@@ -75,3 +75,6 @@ target_link_libraries(eulerIsentropicVortex PUBLIC ablateCore)
 
 add_executable(diffusion eulerWithDiffusion.c)
 target_link_libraries(diffusion PUBLIC ablateCore)
+
+add_executable(ex7.sections ex7.sections.c)
+target_link_libraries(ex7.sections PUBLIC ablateCore)
