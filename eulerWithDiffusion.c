@@ -968,9 +968,6 @@ int main(int argc, char **argv)
     PetscDS auxProblem;
     ierr = DMGetDS(flowData->auxDm, &auxProblem);CHKERRQ(ierr);
 
-    const PetscInt idsAll[]= {1, 2, 3, 4};
-//    ierr = PetscDSAddBoundary(auxProblem, DM_BC_NATURAL_RIEMANN, "sideSets", "Face Sets", 0, 0, NULL, (void (*)(void))PhysicsBoundary_Mirror, NULL, 4, idsAll, &constants);CHKERRQ(ierr);
-
 
     DMView(flowData->auxDm, PETSC_VIEWER_STDOUT_WORLD);
 
