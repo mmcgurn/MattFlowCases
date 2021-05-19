@@ -24,7 +24,7 @@ static PetscReal ComputeTExact( PetscReal time, const PetscReal xyz[], Constants
 
     PetscReal alpha = constants->k/(rho*cv);
     PetscReal Tinitial = 100.0;
-    PetscReal T = 0.0;
+    PetscReal T = 300.0;
     for(PetscReal n =1; n < 2000; n ++){
         PetscReal Bn = -Tinitial*2.0*(-1.0 + PetscPowReal(-1.0, n))/(n*PETSC_PI);
         T += Bn*PetscSinReal(n * PETSC_PI*xyz[0]/constants->L)*PetscExpReal(-n*n*PETSC_PI*PETSC_PI*alpha*time/(PetscSqr(constants->L)));
@@ -209,6 +209,9 @@ static PetscErrorCode UpdateAuxFields(TS ts, Vec locXVec, void*context){
     ierr = VecRestoreArrayRead(cellgeom, &cgeom);CHKERRQ(ierr);
     ierr = VecRestoreArrayRead(locXVec, &locFlowFieldArray);CHKERRQ(ierr);
     ierr = VecRestoreArray(flowData->auxField, &localAuxFlowFieldArray);CHKERRQ(ierr);
+
+//    VecView(flowData->auxField, PETSC_VIEWER_STDOUT_WORLD);
+
 
     PetscFunctionReturn(0);
 }
@@ -515,7 +518,7 @@ static PetscErrorCode FillBoundary(PetscInt dim, PetscInt dof, const PetscFVFace
 }
 
 /**
- * this function updates the boundaries with the gradient computed from the corresponding cell
+ * this function updates the boundaries with the gradient computed from the boundary cell value
  * @param dm
  * @param auxFvm
  * @param gradLocalVec
@@ -632,7 +635,7 @@ static PetscErrorCode DMPlexFillGradientInBoundaryFVM(DM dm, PetscFV auxFvm, Vec
     ierr = VecRestoreArrayRead(faceGeomVec, &faceGeomArray);CHKERRQ(ierr);
 
     PetscFunctionReturn(0);
-};
+}
 
 static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec globFVec, void *ctx){
     // Call the flux calculation
@@ -672,7 +675,6 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
     if(!auxFieldGradDM){
         SETERRQ(PetscObjectComm((PetscObject)setup->flowData->auxDm), PETSC_ERR_ARG_WRONGSTATE, "The FVM method for aux variables must support computing gradients.");
     }
-
 
     // get the dm for each geom type
     DM dmFaceGeom, dmCellGeom;
@@ -800,6 +802,8 @@ static PetscErrorCode DiffusionSource(DM dm, PetscReal time, Vec locXVec, Vec gl
     ierr = VecDestroy(&gradGlobalVec);CHKERRQ(ierr);
     ierr = VecDestroy(&gradLocalVec);CHKERRQ(ierr);
 
+//    VecView(globFVec, PETSC_VIEWER_STDOUT_WORLD);
+
     PetscFunctionReturn(0);
 }
 
@@ -817,7 +821,7 @@ static PetscErrorCode PhysicsBoundary_Euler(PetscReal time, const PetscReal *c, 
 
     // compute the temperature
     PetscReal Tinside =   ComputeTExact(time, x, constants, 1.0);
-    PetscReal boundaryValue = 0.0;
+    PetscReal boundaryValue = 300.0;
 
     PetscReal T = boundaryValue;//boundaryValue - (Tinside - boundaryValue);//TODO: fix uniform grad
 
@@ -856,10 +860,10 @@ int main(int argc, char **argv)
 
     // sub sonic
     constants.dim = 2;
-    constants.L = 0.1;
+    constants.L = 0.2;
     constants.gamma = 1.4;
     constants.k = 0.3;
-    constants.Rgas = 1;//287.0;
+    constants.Rgas = 287.0;
 
     PetscErrorCode ierr;
     // create the mesh
@@ -904,7 +908,7 @@ int main(int argc, char **argv)
 
     // set up the finite volume fluxes
     CompressibleFlow_StartProblemSetup(flowData, TOTAL_COMPRESSIBLE_FLOW_PARAMETERS, params);
-    DMView(flowData->dm, PETSC_VIEWER_STDOUT_WORLD);
+
     // Add in any boundary conditions
     PetscDS prob;
     ierr = DMGetDS(flowData->dm, &prob);
@@ -915,7 +919,7 @@ int main(int argc, char **argv)
     const PetscInt idsTop[]= {1, 3};
     ierr = PetscDSAddBoundary(prob, DM_BC_NATURAL_RIEMANN, "top/bottom", "Face Sets", 0, 0, NULL, (void (*)(void))PhysicsBoundary_Mirror, NULL, 2, idsTop, &constants);CHKERRQ(ierr);
 
-    ierr = FlowRegisterAuxField(flowData, "Temperature", "T", 1, FV);CHKERRQ(ierr);
+//    ierr = FlowRegisterAuxField(flowData, "Temperature", "T", 1, FV);CHKERRQ(ierr);
 
     // Complete the problem setup
     ierr = CompressibleFlow_CompleteProblemSetup(flowData, ts);
@@ -947,15 +951,16 @@ int main(int argc, char **argv)
 
     // Compute the end time so it goes around once
     // compute dt
+    PetscReal cv = constants.gamma*constants.Rgas/(constants.gamma - 1) - constants.Rgas;
     PetscReal dxMin = constants.L/(10 * PetscPowRealInt(2, 2));
 
-    PetscReal alpha = PetscAbs(constants.k/ (1.0 * 1.0));
-    double dt_conduc = .3*PetscSqr(dxMin) / alpha;
+    PetscReal alpha = PetscAbs(constants.k/ (cv * 1.0));
+    double dt_conduc =  5.000000000000004E-4;// 0.00000625;//.3*PetscSqr(dxMin) / alpha;
 
     PetscPrintf(PETSC_COMM_WORLD, "dt_conduc: %f\n", dt_conduc);
     TSSetTimeStep(ts, dt_conduc);
 //    TSSetMaxTime(ts, 0.001);
-    TSSetMaxSteps(ts, 600);
+    TSSetMaxSteps(ts, 1200);
 
     PetscDSView(prob, PETSC_VIEWER_STDOUT_WORLD);
 
@@ -964,9 +969,10 @@ int main(int argc, char **argv)
     ierr = DMGetDS(flowData->auxDm, &auxProblem);CHKERRQ(ierr);
 
     const PetscInt idsAll[]= {1, 2, 3, 4};
-    ierr = PetscDSAddBoundary(auxProblem, DM_BC_NATURAL_RIEMANN, "sideSets", "Face Sets", 0, 0, NULL, (void (*)(void))PhysicsBoundary_Mirror, NULL, 4, idsAll, &constants);CHKERRQ(ierr);
+//    ierr = PetscDSAddBoundary(auxProblem, DM_BC_NATURAL_RIEMANN, "sideSets", "Face Sets", 0, 0, NULL, (void (*)(void))PhysicsBoundary_Mirror, NULL, 4, idsAll, &constants);CHKERRQ(ierr);
 
 
+    DMView(flowData->auxDm, PETSC_VIEWER_STDOUT_WORLD);
 
     ierr = TSSolve(ts,flowData->flowField);CHKERRQ(ierr);
 
