@@ -30,7 +30,6 @@ static PetscReal ComputeTExact( PetscReal time, const PetscReal xyz[], Constants
         T += Bn*PetscSinReal(n * PETSC_PI*xyz[0]/constants->L)*PetscExpReal(-n*n*PETSC_PI*PETSC_PI*alpha*time/(PetscSqr(constants->L)));
     }
 
-
     return T;
 }
 
@@ -42,7 +41,7 @@ static PetscErrorCode InitialConditions(PetscInt dim, PetscReal time, const Pets
     PetscReal T = ComputeTExact(time, xyz, constants, 1.0);
 
     PetscReal u = 0.0;
-    PetscReal v = 0.0;
+    PetscReal v = xyz[0];
     PetscReal rho = 1.0;
     PetscReal p= rho*constants->Rgas*T;
     PetscReal e = p/((constants->gamma - 1.0)*rho);
